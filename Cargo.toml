@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pallets/*"]
+members = ["pallets/*", "services/*"]
 
 [workspace.package]
 name = "regionx-pallets"
@@ -15,16 +15,19 @@ edition = "2021"
 [workspace.dependencies]
 serde = { version = "1.0.201", default-features = false }
 smallvec = "1.11.0"
+futures = "0.3.31"
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 log = { version = "0.4.20", default-features = false }
 scale-info = { version = "2.11.3", default-features = false }
 
-cumulus-primitives-core = { version = "0.16.0", default-features = false }
+# Substrate
 
 frame = { version = "0.7.0", package = "polkadot-sdk-frame", default-features = false }
 frame-benchmarking = { version = "38.0.0", default-features = false }
 frame-support = { version = "38.0.0", default-features = false }
 frame-system = { version = "38.0.0", default-features = false }
+
+sc-service = { version = "0.46.0", default-features = false }
 
 sp-io = { version = "38.0.0", default-features = false }
 sp-core = { version = "34.0.0", default-features = false }
@@ -38,6 +41,14 @@ xcm = { version = "14.2.0", package = "staging-xcm", default-features = false }
 xcm-builder = { version = "17.0.1", package = "staging-xcm-builder", default-features = false }
 xcm-executor = { version = "17.0.0", package = "staging-xcm-executor", default-features = false }
 
+# Cumulus
+cumulus-primitives-core = { version = "0.16.0", default-features = false }
+cumulus-relay-chain-interface = { version = "0.18.0", default-features = false }
+
+# Polkadot
+polkadot-primitives = { version = "16.0.0", default-features = false }
+
 # Local
 pallet-order-creator = { path = "./pallets/order-creator", default-features = false }
 pallet-on-demand = { path = "./pallets/on-demand", default-features = false }
+on-demand-service = { path = "./services/on-demand", default-features = false }
