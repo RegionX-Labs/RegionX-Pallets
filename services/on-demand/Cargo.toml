@@ -18,10 +18,11 @@ sc-transaction-pool-api = { workspace = true }
 sc-client-api = { workspace = true }
 
 sp-api = { workspace = true }
+sp-consensus-aura = { workspace = true }
+sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-keystore = { workspace = true }
 sc-service = { workspace = true }
-sp-core = { workspace = true }
 
 # Cumulus
 cumulus-primitives-core = { workspace = true }

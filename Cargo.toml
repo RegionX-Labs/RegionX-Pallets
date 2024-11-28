@@ -32,8 +32,9 @@ sc-client-api = { version = "37.0.0", default-features = false }
 sc-service = { version = "0.46.0", default-features = false }
 
 sp-api = { version = "34.0.0", default-features = false }
-sp-io = { version = "38.0.0", default-features = false }
+sp-consensus-aura = { version = "0.40.0" }
 sp-core = { version = "34.0.0", default-features = false }
+sp-io = { version = "38.0.0", default-features = false }
 sp-runtime = { version = "39.0.1", default-features = false }
 sp-keystore = { version = "0.40.0", default-features = false }
 

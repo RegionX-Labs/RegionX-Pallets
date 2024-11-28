@@ -9,9 +9,10 @@ use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::{InPoolTransaction, MaintainedTransactionPool};
 use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::H256;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, MaybeDisplay};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 
 /// Start all the on-demand order creation related tasks.
@@ -37,9 +38,10 @@ where
 		+ From<u128>,
 	R: RelayChainInterface + Clone + 'static,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
+	P::Api: AuraApi<Block, AuthorityId>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 {
-	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool>(
+	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -57,7 +59,7 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool>(
+async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -65,9 +67,19 @@ async fn run_on_demand_task<P, R, Block, ExPool>(
 	transaction_pool: Arc<ExPool>,
 ) where
 	Block: BlockT,
+	Balance: Codec
+		+ MaybeDisplay
+		+ 'static
+		+ Debug
+		+ Into<u128>
+		+ AtLeast32BitUnsigned
+		+ Copy
+		+ From<u128>,
 	R: RelayChainInterface + Clone,
+	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
+	P::Api: AuraApi<Block, AuthorityId>,
 {
-	follow_relay_chain::<P, R, Block, ExPool>(
+	follow_relay_chain::<P, R, Block, ExPool, Balance>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -76,7 +88,7 @@ async fn run_on_demand_task<P, R, Block, ExPool>(
 	);
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool>(
+async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -84,7 +96,17 @@ async fn follow_relay_chain<P, R, Block, ExPool>(
 	transaction_pool: Arc<ExPool>,
 ) where
 	Block: BlockT,
+	Balance: Codec
+		+ MaybeDisplay
+		+ 'static
+		+ Debug
+		+ Into<u128>
+		+ AtLeast32BitUnsigned
+		+ Copy
+		+ From<u128>,
 	R: RelayChainInterface + Clone,
+	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
+	P::Api: AuraApi<Block, AuthorityId>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -99,7 +121,7 @@ async fn follow_relay_chain<P, R, Block, ExPool>(
 			h = new_best_heads.next() => {
 				match h {
 					Some((height, head, hash)) => {
-						let _ = handle_relaychain_stream::<P, Block, ExPool>(
+						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance>(
 							head,
 							height,
 							&*parachain,
@@ -120,7 +142,7 @@ async fn follow_relay_chain<P, R, Block, ExPool>(
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool>(
+async fn handle_relaychain_stream<P, Block, ExPool, Balance>(
 	validation_data: PersistedValidationData,
 	height: RelayBlockNumber,
 	parachain: &P,
@@ -132,6 +154,19 @@ async fn handle_relaychain_stream<P, Block, ExPool>(
 ) -> Result<(), Box<dyn Error>>
 where
 	Block: BlockT,
+	Balance: Codec
+		+ MaybeDisplay
+		+ 'static
+		+ Debug
+		+ Into<u128>
+		+ AtLeast32BitUnsigned
+		+ Copy
+		+ From<u128>,
+	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
+	P::Api: AuraApi<Block, AuthorityId>, /* 
+	                                      * + OrderRuntimeApi<Block, Balance> <- TODO
+	                                      * + TransactionPaymentApi<Block, Balance> <- TODO
+	                                      * + OnRelayChainApi<Block>, <- TODO */
 {
 	let is_parathread = true; // TODO: check from the relay chain.
 
@@ -149,9 +184,11 @@ where
 		return Ok(())
 	}
 
-	let parent_head_encoded = validation_data.clone().parent_head.0;
-	let parent_head =
-		<<Block as BlockT>::Header>::decode(&mut &parent_head_encoded[..]).map_err(|e| e)?;
+	let head_encoded = validation_data.clone().parent_head.0;
+	let head = <<Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
+
+	let head_hash = head.hash();
+	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
 
 	Ok(())
 }
