@@ -27,11 +27,15 @@ frame-benchmarking = { version = "38.0.0", default-features = false }
 frame-support = { version = "38.0.0", default-features = false }
 frame-system = { version = "38.0.0", default-features = false }
 
+sc-transaction-pool-api = { version = "37.0.0", default-features = false }
+sc-client-api = { version = "37.0.0", default-features = false }
 sc-service = { version = "0.46.0", default-features = false }
 
+sp-api = { version = "34.0.0", default-features = false }
 sp-io = { version = "38.0.0", default-features = false }
 sp-core = { version = "34.0.0", default-features = false }
 sp-runtime = { version = "39.0.1", default-features = false }
+sp-keystore = { version = "0.40.0", default-features = false }
 
 pallet-broker = { version = "0.17.0", default-features = false }
 pallet-balances = { version = "39.0.0", default-features = false }

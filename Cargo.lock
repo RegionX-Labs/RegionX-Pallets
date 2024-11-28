@@ -4867,11 +4867,16 @@ dependencies = [
  "futures",
  "parity-scale-codec",
  "polkadot-primitives",
+ "sc-client-api",
  "sc-service",
+ "sc-transaction-pool-api",
  "scale-info",
  "serde",
  "smallvec",
+ "sp-api",
  "sp-core",
+ "sp-keystore",
+ "sp-runtime",
 ]
 
 [[package]]
