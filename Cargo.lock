@@ -4859,12 +4859,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "on-demand-primitives"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "smallvec",
+ "sp-api",
+ "sp-runtime",
+]
+
+[[package]]
 name = "on-demand-service"
 version = "0.1.0"
 dependencies = [
  "cumulus-primitives-core",
  "cumulus-relay-chain-interface",
  "futures",
+ "on-demand-primitives",
  "parity-scale-codec",
  "polkadot-primitives",
  "sc-client-api",
@@ -4874,6 +4887,7 @@ dependencies = [
  "serde",
  "smallvec",
  "sp-api",
+ "sp-application-crypto",
  "sp-consensus-aura",
  "sp-core",
  "sp-keystore",

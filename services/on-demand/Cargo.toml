@@ -18,6 +18,7 @@ sc-transaction-pool-api = { workspace = true }
 sc-client-api = { workspace = true }
 
 sp-api = { workspace = true }
+sp-application-crypto = { workspace = true }
 sp-consensus-aura = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
@@ -30,6 +31,9 @@ cumulus-relay-chain-interface = { workspace = true }
 
 # Polkadot
 polkadot-primitives = { workspace = true }
+
+# Local
+on-demand-primitives = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true }

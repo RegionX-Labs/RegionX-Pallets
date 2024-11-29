@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pallets/*", "services/*"]
+members = ["pallets/*", "primitives/on-demand", "services/*"]
 
 [workspace.package]
 name = "regionx-pallets"
@@ -32,6 +32,7 @@ sc-client-api = { version = "37.0.0", default-features = false }
 sc-service = { version = "0.46.0", default-features = false }
 
 sp-api = { version = "34.0.0", default-features = false }
+sp-application-crypto = { version = "38.0.0" }
 sp-consensus-aura = { version = "0.40.0" }
 sp-core = { version = "34.0.0", default-features = false }
 sp-io = { version = "38.0.0", default-features = false }
@@ -56,4 +57,5 @@ polkadot-primitives = { version = "16.0.0", default-features = false }
 # Local
 pallet-order-creator = { path = "./pallets/order-creator", default-features = false }
 pallet-on-demand = { path = "./pallets/on-demand", default-features = false }
+on-demand-primitives = { path = "./primitives/on-demand", default-features = false }
 on-demand-service = { path = "./services/on-demand", default-features = false }

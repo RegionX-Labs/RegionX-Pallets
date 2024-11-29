@@ -1,16 +1,21 @@
+//! On-demand order placement service.
+//!
+//! NOTE: Inspiration was taken from the Magnet(https://github.com/Magport/Magnet) on-demand integration.
+
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{
 	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, Stream, StreamExt};
+use on_demand_primitives::OnDemandRuntimeApi;
 use polkadot_primitives::OccupiedCoreAssumption;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::{InPoolTransaction, MaintainedTransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
-use sp_core::H256;
+use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
@@ -38,7 +43,7 @@ where
 		+ From<u128>,
 	R: RelayChainInterface + Clone + 'static,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId>,
+	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 {
 	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance>(
@@ -77,7 +82,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 		+ From<u128>,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId>,
+	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
 	follow_relay_chain::<P, R, Block, ExPool, Balance>(
 		para_id,
@@ -106,7 +111,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 		+ From<u128>,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId>,
+	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -163,10 +168,7 @@ where
 		+ Copy
 		+ From<u128>,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId>, /* 
-	                                      * + OrderRuntimeApi<Block, Balance> <- TODO
-	                                      * + TransactionPaymentApi<Block, Balance> <- TODO
-	                                      * + OnRelayChainApi<Block>, <- TODO */
+	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
 	let is_parathread = true; // TODO: check from the relay chain.
 
@@ -189,6 +191,15 @@ where
 
 	let head_hash = head.hash();
 	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
+	let slot_width = parachain.runtime_api().slot_width(head_hash)?;
+
+	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
+	let indx = (height >> slot_width) % authorities.len() as u32;
+	let expected_author = authorities.get(indx as usize).ok_or::<Box<dyn Error>>("TODO".into())?;
+
+	if keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
+	{
+	}
 
 	Ok(())
 }
