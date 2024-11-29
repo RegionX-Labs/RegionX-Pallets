@@ -8,8 +8,11 @@ use cumulus_primitives_core::{
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, Stream, StreamExt};
-use on_demand_primitives::OnDemandRuntimeApi;
+use on_demand_primitives::{
+	EnqueuedOrder, OnDemandRuntimeApi, ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC,
+};
 use polkadot_primitives::OccupiedCoreAssumption;
+use polkadot_runtime_parachains::configuration::HostConfiguration;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::{InPoolTransaction, MaintainedTransactionPool};
@@ -17,7 +20,10 @@ use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
+use sp_runtime::{
+	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
+	FixedPointNumber, FixedU128, SaturatedConversion,
+};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 
 /// Start all the on-demand order creation related tasks.
@@ -197,11 +203,63 @@ where
 	let indx = (height >> slot_width) % authorities.len() as u32;
 	let expected_author = authorities.get(indx as usize).ok_or::<Box<dyn Error>>("TODO".into())?;
 
-	if keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
+	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
+		// Expected author is not in the keystore therefore we are not responsible for order
+		// creation.
+		return Ok(())
 	}
 
+	let on_demand_queue_storage = relay_chain.get_storage_by_key(p_hash, ON_DEMAND_QUEUE).await?;
+	let on_demand_queue = on_demand_queue_storage
+		.map(|raw| <Vec<EnqueuedOrder>>::decode(&mut &raw[..]))
+		.transpose()?;
+
+	let order_exists = if let Some(queue) = on_demand_queue {
+		queue.into_iter().position(|e| e.para_id == para_id).is_some()
+	} else {
+		false
+	};
+
+	if order_exists {
+		return Ok(())
+	}
+
+	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash);
+
 	Ok(())
+}
+
+/// Get the spot price from the relay chain.
+async fn get_spot_price<Balance>(
+	relay_chain: impl RelayChainInterface + Clone,
+	hash: H256,
+) -> Option<Balance>
+where
+	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
+{
+	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
+	let p_spot_traffic = spot_traffic_storage
+		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
+	let p_active_config = active_config_storage
+		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	if p_spot_traffic.is_some() && p_active_config.is_some() {
+		let spot_traffic = p_spot_traffic.unwrap();
+		let active_config = p_active_config.unwrap();
+		let spot_price = spot_traffic.saturating_mul_int(
+			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
+		);
+		Some(Balance::from(spot_price))
+	} else {
+		None
+	}
 }
 
 async fn new_best_heads(

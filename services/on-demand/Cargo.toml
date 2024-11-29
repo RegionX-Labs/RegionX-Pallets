@@ -31,6 +31,7 @@ cumulus-relay-chain-interface = { workspace = true }
 
 # Polkadot
 polkadot-primitives = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
 
 # Local
 on-demand-primitives = { workspace = true }
