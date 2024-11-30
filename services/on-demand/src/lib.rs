@@ -26,6 +26,8 @@ use sp_runtime::{
 };
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 
+mod chain;
+
 /// Start all the on-demand order creation related tasks.
 pub async fn start_on_demand<P, R, ExPool, Block, Balance>(
 	parachain: Arc<P>,
@@ -227,6 +229,20 @@ where
 
 	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash);
 
+	// Before placing an order ensure that the criteria for placing an order has been reached.
+	let order_criteria_reached = true; // TODO: this should be customizable
+
+	// TODO: place order
+
+	Ok(())
+}
+
+async fn try_place_order<Balance>(
+	keystore: KeystorePtr,
+	para_id: ParaId,
+	url: String,
+	max_amount: Balance,
+) -> Result<(), Box<dyn Error>> {
 	Ok(())
 }
 

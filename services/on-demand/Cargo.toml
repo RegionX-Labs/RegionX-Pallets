@@ -13,6 +13,8 @@ futures = { workspace = true }
 codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 
+subxt = { workspace = true }
+
 # Substrate
 sc-transaction-pool-api = { workspace = true }
 sc-client-api = { workspace = true }
