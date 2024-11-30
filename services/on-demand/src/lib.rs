@@ -15,7 +15,7 @@ use polkadot_primitives::OccupiedCoreAssumption;
 use polkadot_runtime_parachains::configuration::HostConfiguration;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
-use sc_transaction_pool_api::{InPoolTransaction, MaintainedTransactionPool};
+use sc_transaction_pool_api::MaintainedTransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::{ByteArray, H256};
@@ -54,12 +54,20 @@ where
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 {
+	let mut url = String::from("ws://"); // <- TODO wss
+	url.push_str(
+		&relay_rpc
+			.expect("RPC address required for submitting on-demand orders")
+			.to_string(),
+	);
+
 	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance>(
 		para_id,
 		parachain,
 		relay_chain,
 		keystore,
 		transaction_pool,
+		url,
 	);
 
 	// TODO: spawn_blocking?
@@ -78,6 +86,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	relay_chain: R,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
+	relay_url: String,
 ) where
 	Block: BlockT,
 	Balance: Codec
@@ -98,6 +107,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 		relay_chain,
 		keystore,
 		transaction_pool,
+		relay_url,
 	);
 }
 
@@ -107,6 +117,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 	relay_chain: R,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
+	relay_url: String,
 ) where
 	Block: BlockT,
 	Balance: Codec
@@ -143,6 +154,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 							relay_chain.clone(),
 							hash,
 							para_id,
+							relay_url.clone(),
 						).await;
 					},
 					None => {
@@ -164,6 +176,7 @@ async fn handle_relaychain_stream<P, Block, ExPool, Balance>(
 	relay_chain: impl RelayChainInterface + Clone,
 	p_hash: H256,
 	para_id: ParaId,
+	relay_url: String,
 ) -> Result<(), Box<dyn Error>>
 where
 	Block: BlockT,
@@ -227,22 +240,18 @@ where
 		return Ok(())
 	}
 
-	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash);
-
 	// Before placing an order ensure that the criteria for placing an order has been reached.
 	let order_criteria_reached = true; // TODO: this should be customizable
 
-	// TODO: place order
+	if !order_criteria_reached {
+		return Ok(())
+	}
 
-	Ok(())
-}
+	let spot_price =
+		get_spot_price::<Balance>(relay_chain, p_hash).await.unwrap_or(1_000u32.into()); // TODO
 
-async fn try_place_order<Balance>(
-	keystore: KeystorePtr,
-	para_id: ParaId,
-	url: String,
-	max_amount: Balance,
-) -> Result<(), Box<dyn Error>> {
+	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
+
 	Ok(())
 }
 
