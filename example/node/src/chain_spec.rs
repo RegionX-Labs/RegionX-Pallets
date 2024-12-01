@@ -1,4 +1,4 @@
-use parachain_template_runtime as runtime;
+use parachain_example_runtime as runtime;
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
