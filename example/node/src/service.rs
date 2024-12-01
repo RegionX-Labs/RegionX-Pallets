@@ -251,6 +251,11 @@ pub async fn start_parachain_node(
 	let backend = params.backend.clone();
 	let mut task_manager = params.task_manager;
 
+	let relay_rpc = polkadot_config.rpc.addr
+		.as_ref()
+		.and_then(|r| r.first())
+		.map(|f| f.listen_addr);
+
 	let (relay_chain_interface, collator_key) = build_relay_chain_interface(
 		polkadot_config,
 		&parachain_config,
@@ -393,7 +398,7 @@ pub async fn start_parachain_node(
 			transaction_pool.clone(),
 			&task_manager,
 			params.keystore_container.keystore(),
-			polkadot_config.rpc.addr,
+			relay_rpc,
 		)?;
 		start_consensus(
 			client.clone(),
