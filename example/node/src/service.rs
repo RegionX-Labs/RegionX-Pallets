@@ -40,6 +40,9 @@ use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerH
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_keystore::KeystorePtr;
 
+// RegionX Modules
+use on_demand_service::start_on_demand;
+
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
@@ -383,6 +386,15 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
+		start_on_demand(
+			client.clone(),
+			para_id,
+			relay_chain_interface.clone(),
+			transaction_pool.clone(),
+			&task_manager,
+			params.keystore_container.keystore(),
+			polkadot_config.rpc.addr,
+		)?;
 		start_consensus(
 			client.clone(),
 			backend,

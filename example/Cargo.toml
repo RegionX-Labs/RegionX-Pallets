@@ -105,3 +105,8 @@ sp-version = { version = "37.0.0", default-features = false }
 xcm-builder = { version = "17.0.0", default-features = false, package = "staging-xcm-builder" }
 xcm-executor = { version = "17.0.0", default-features = false, package = "staging-xcm-executor" }
 substrate-wasm-builder = { version = "24.0.1", default-features = false }
+
+# RegionX Modules
+on-demand-service = { path = "../services/on-demand" }
+on-demand-primitives = { path = "../primitives/on-demand" }
+pallet-on-demand = { path = "../pallets/on-demand", default-features = false }

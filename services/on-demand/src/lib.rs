@@ -29,7 +29,7 @@ use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 mod chain;
 
 /// Start all the on-demand order creation related tasks.
-pub async fn start_on_demand<P, R, ExPool, Block, Balance>(
+pub fn start_on_demand<P, R, ExPool, Block, Balance>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,

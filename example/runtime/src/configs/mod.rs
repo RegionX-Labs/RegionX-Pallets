@@ -302,3 +302,10 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorRegistration = Session;
 	type WeightInfo = ();
 }
+
+impl pallet_on_demand::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type AdminOrigin = EnsureRoot<AccountId>;
+	type BlockNumber = BlockNumber;
+	type WeightInfo = ();
+}
