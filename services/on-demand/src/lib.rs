@@ -70,7 +70,6 @@ where
 		url,
 	);
 
-	// TODO: spawn_blocking?
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"on-demand order placement task",
 		"on-demand",
