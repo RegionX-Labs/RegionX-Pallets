@@ -1,0 +1,46 @@
+[package]
+name = "on-demand-service"
+authors = ["RegionX"]
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+futures = { workspace = true }
+codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+
+subxt = { workspace = true }
+
+# Substrate
+sc-transaction-pool-api = { workspace = true }
+sc-client-api = { workspace = true }
+
+sp-api = { workspace = true }
+sp-application-crypto = { workspace = true }
+sp-consensus-aura = { workspace = true }
+sp-core = { workspace = true }
+sp-runtime = { workspace = true }
+sp-keystore = { workspace = true }
+sc-service = { workspace = true }
+
+# Cumulus
+cumulus-primitives-core = { workspace = true }
+cumulus-relay-chain-interface = { workspace = true }
+
+# Polkadot
+polkadot-primitives = { workspace = true }
+polkadot-runtime-parachains = { workspace = true }
+
+# Local
+on-demand-primitives = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+smallvec = { workspace = true }
+
+[features]
+default = []
