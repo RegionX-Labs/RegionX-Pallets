@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use codec::{Codec, Decode, Encode};
 use cumulus_primitives_core::ParaId;
 use sp_runtime::traits::MaybeDisplay;

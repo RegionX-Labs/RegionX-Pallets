@@ -44,7 +44,7 @@ use sp_version::RuntimeVersion;
 use super::{
 	AccountId, Balance, Block, ConsensusHook, Executive, InherentDataExt, Nonce, ParachainSystem,
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
-	SLOT_DURATION, VERSION,
+	SLOT_DURATION, VERSION, BlockNumber, OnDemand,
 };
 
 // we move some impls outside so we can easily use them with `docify`.
@@ -213,6 +213,12 @@ impl_runtime_apis! {
 	impl cumulus_primitives_core::CollectCollationInfo<Block> for Runtime {
 		fn collect_collation_info(header: &<Block as BlockT>::Header) -> cumulus_primitives_core::CollationInfo {
 			ParachainSystem::collect_collation_info(header)
+		}
+	}
+
+	impl on_demand_primitives::OnDemandRuntimeApi<Block, Balance, BlockNumber> for Runtime {
+		fn slot_width()-> u32{
+			OnDemand::slot_width()
 		}
 	}
 

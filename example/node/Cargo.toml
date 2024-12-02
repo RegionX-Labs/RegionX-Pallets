@@ -109,6 +109,9 @@ cumulus-relay-chain-interface.workspace = true
 cumulus-relay-chain-interface.default-features = true
 color-print = { workspace = true }
 
+# RegionX Modules
+on-demand-service = { workspace = true }
+
 [build-dependencies]
 substrate-build-script-utils.workspace = true
 substrate-build-script-utils.default-features = true
