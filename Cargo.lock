@@ -5279,6 +5279,7 @@ dependencies = [
  "cumulus-primitives-core",
  "cumulus-relay-chain-interface",
  "futures",
+ "log",
  "on-demand-primitives",
  "parity-scale-codec",
  "polkadot-primitives",

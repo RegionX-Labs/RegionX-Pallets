@@ -88,14 +88,19 @@ pub async fn submit_order(
 	let client = OnlineClient::<PolkadotConfig>::from_url(url).await.unwrap(); // TODO
 
 	let place_order = polkadot::tx()
-		.on_demand()
+		.on_demand_assignment_provider()
 		.place_order_allow_death(max_amount, Id(para_id.into()));
 
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
 	let submit_result = client.tx().sign_and_submit_default(&place_order, &signer_keystore).await;
 	// log::info!("submit_result:{:?}", submit_result);
-	submit_result.unwrap(); // TODO
+	// submit_result.unwrap(); // TODO
 
 	Ok(())
 }
+
+/* TODO:
+2024-12-02 20:15:27 [Parachain] Essential task `on-demand order placement task` failed. Shutting down service.    
+Error: Service(Other("Essential task failed."))
+*/
