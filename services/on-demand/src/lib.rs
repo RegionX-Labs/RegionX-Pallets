@@ -9,7 +9,7 @@ use cumulus_primitives_core::{
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, Stream, StreamExt, FutureExt};
 use on_demand_primitives::{
-	EnqueuedOrder, OnDemandRuntimeApi, ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC,
+	EnqueuedOrder, OnDemandRuntimeApi, well_known_keys::{ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC},
 };
 use polkadot_primitives::OccupiedCoreAssumption;
 use polkadot_runtime_parachains::configuration::HostConfiguration;
@@ -25,6 +25,7 @@ use sp_runtime::{
 	FixedPointNumber, FixedU128, SaturatedConversion,
 };
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
+use crate::chain::is_parathread;
 
 mod chain;
 
@@ -214,12 +215,15 @@ where
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
-	let is_parathread = true; // TODO: check from the relay chain.
+	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
 
 	if !is_parathread {
-		// TODO: is there anything that should be done?
-		//
-		// Probably clear on-chain state regarding on-demand orders.
+		log::info!(
+			target: LOG_TARGET,
+			"Not a parathread, switching to bulk coretime",
+		);
+		// TODO: switch to bulk (is there actually anything to be done?)
+
 		return Ok(())
 	}
 

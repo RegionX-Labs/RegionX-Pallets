@@ -3,7 +3,7 @@
 use crate::chain::polkadot::runtime_types::polkadot_parachain_primitives::primitives::Id;
 use cumulus_primitives_core::ParaId;
 use sp_application_crypto::AppCrypto;
-use sp_core::ByteArray;
+use sp_core::{H256, ByteArray};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -11,6 +11,10 @@ use sp_runtime::{
 };
 use std::error::Error;
 use subxt::{tx::Signer, utils::MultiSignature, Config, OnlineClient, PolkadotConfig};
+use cumulus_relay_chain_interface::RelayChainInterface;
+use on_demand_primitives::well_known_keys::para_lifecycle;
+use polkadot_runtime_parachains::ParaLifecycle;
+use codec::Decode;
 
 #[subxt::subxt(runtime_metadata_path = "../../artifacts/metadata.scale")]
 pub mod polkadot {}
@@ -100,7 +104,19 @@ pub async fn submit_order(
 	Ok(())
 }
 
-/* TODO:
-2024-12-02 20:15:27 [Parachain] Essential task `on-demand order placement task` failed. Shutting down service.    
-Error: Service(Other("Essential task failed."))
-*/
+/// Is this a parathread?
+pub async fn is_parathread(
+	relay_chain: &(impl RelayChainInterface + Clone),
+	p_hash: H256,
+	para_id: ParaId,
+) -> Result<bool, Box<dyn Error>> {
+	let para_lifecycle_storage = relay_chain
+		.get_storage_by_key(p_hash, para_lifecycle(para_id).as_slice())
+		.await?;
+	let para_lifecycle = para_lifecycle_storage
+		.map(|raw| <ParaLifecycle>::decode(&mut &raw[..]))
+		.transpose()?;
+
+	let is_parathread = para_lifecycle == Some(ParaLifecycle::Parathread);
+	Ok(is_parathread)
+}

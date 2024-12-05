@@ -5269,6 +5269,7 @@ dependencies = [
  "serde",
  "smallvec",
  "sp-api",
+ "sp-io",
  "sp-runtime",
 ]
 
