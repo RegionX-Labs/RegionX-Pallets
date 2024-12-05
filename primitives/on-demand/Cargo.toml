@@ -24,7 +24,7 @@ serde = { workspace = true }
 smallvec = { workspace = true }
 
 [features]
-efault = ["std"]
+default = ["std"]
 std = [
     "codec/std",
     "scale-info/std",

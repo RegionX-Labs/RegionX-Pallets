@@ -42,6 +42,3 @@ on-demand-primitives = { workspace = true }
 [dev-dependencies]
 serde = { workspace = true }
 smallvec = { workspace = true }
-
-[features]
-default = []

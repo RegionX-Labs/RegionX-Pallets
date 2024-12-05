@@ -58,7 +58,7 @@ polkadot-primitives = { version = "16.0.0", default-features = false }
 polkadot-runtime-parachains = { version = "17.0.1" }
 
 # Local
-pallet-order-creator = { path = "./pallets/order-creator", default-features = false }
-pallet-on-demand = { path = "./pallets/on-demand", default-features = false }
-on-demand-primitives = { path = "./primitives/on-demand", default-features = false }
-on-demand-service = { path = "./services/on-demand", default-features = false }
+pallet-order-creator = { path = "./pallets/order-creator" }
+pallet-on-demand = { path = "./pallets/on-demand" }
+on-demand-primitives = { path = "./primitives/on-demand" }
+on-demand-service = { path = "./services/on-demand" }
