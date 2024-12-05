@@ -7,9 +7,9 @@ use cumulus_primitives_core::{
 	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
-use futures::{pin_mut, select, Stream, StreamExt};
+use futures::{pin_mut, select, Stream, StreamExt, FutureExt};
 use on_demand_primitives::{
-	EnqueuedOrder, OnDemandRuntimeApi, ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC,
+	EnqueuedOrder, OnDemandRuntimeApi, well_known_keys::{ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC},
 };
 use polkadot_primitives::OccupiedCoreAssumption;
 use polkadot_runtime_parachains::configuration::HostConfiguration;
@@ -25,11 +25,14 @@ use sp_runtime::{
 	FixedPointNumber, FixedU128, SaturatedConversion,
 };
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
+use crate::chain::is_parathread;
 
 mod chain;
 
+const LOG_TARGET: &str = "on-demand-service";
+
 /// Start all the on-demand order creation related tasks.
-pub async fn start_on_demand<P, R, ExPool, Block, Balance>(
+pub fn start_on_demand<P, R, ExPool, Block, Balance>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,
@@ -100,7 +103,12 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
-	follow_relay_chain::<P, R, Block, ExPool, Balance>(
+	log::info!(
+		target: LOG_TARGET,
+		"Starting on-demand task"
+	);
+
+	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -108,6 +116,12 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 		transaction_pool,
 		relay_url,
 	);
+
+	// let event_notification = event_notification(para_id, url, order_record);
+	select! {
+		_ = relay_chain_notification.fuse() => {},
+		// _ = event_notification.fuse() => {},
+	}
 }
 
 async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
@@ -134,6 +148,11 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
 		Err(_err) => {
+			log::error!(
+				target: LOG_TARGET,
+				"Error: {:?}",
+				_err
+			);
 			return;
 		},
 	};
@@ -144,6 +163,12 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 			h = new_best_heads.next() => {
 				match h {
 					Some((height, head, hash)) => {
+						log::info!(
+							target: LOG_TARGET,
+							"New best head: {}",
+							hash
+						);
+
 						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance>(
 							head,
 							height,
@@ -190,12 +215,15 @@ where
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
-	let is_parathread = true; // TODO: check from the relay chain.
+	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
 
 	if !is_parathread {
-		// TODO: is there anything that should be done?
-		//
-		// Probably clear on-chain state regarding on-demand orders.
+		log::info!(
+			target: LOG_TARGET,
+			"Not a parathread, switching to bulk coretime",
+		);
+		// TODO: switch to bulk (is there actually anything to be done?)
+
 		return Ok(())
 	}
 
@@ -249,6 +277,11 @@ where
 	let spot_price =
 		get_spot_price::<Balance>(relay_chain, p_hash).await.unwrap_or(1_000u32.into()); // TODO
 
+	log::info!(
+		target: LOG_TARGET,
+		"Placing an order",
+	);
+
 	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
 
 	Ok(())
@@ -275,8 +308,8 @@ where
 		.ok()?;
 
 	if p_spot_traffic.is_some() && p_active_config.is_some() {
-		let spot_traffic = p_spot_traffic.unwrap();
-		let active_config = p_active_config.unwrap();
+		let spot_traffic = p_spot_traffic.unwrap_or_default(); // TODO: don't unwrap or default.
+		let active_config = p_active_config.unwrap_or_default(); // TODO: don't unwrap or default.
 		let spot_price = spot_traffic.saturating_mul_int(
 			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
 		);

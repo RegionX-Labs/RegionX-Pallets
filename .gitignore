@@ -1,2 +1,6 @@
 /target
 **/target/
+**/polkadot
+**/parachain-example-node
+**/polkadot-execute-worker
+**/polkadot-prepare-worker
