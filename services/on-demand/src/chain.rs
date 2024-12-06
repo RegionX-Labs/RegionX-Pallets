@@ -1,20 +1,28 @@
 //! This file contains all the chain related interaction functions.
 
-use crate::chain::polkadot::runtime_types::polkadot_parachain_primitives::primitives::Id;
+use crate::{
+	chain::polkadot::runtime_types::{
+		polkadot_parachain_primitives::primitives::Id,
+		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
+	},
+	LOG_TARGET,
+};
+use codec::{Codec, Decode};
 use cumulus_primitives_core::ParaId;
+use cumulus_relay_chain_interface::RelayChainInterface;
+use on_demand_primitives::well_known_keys::{
+	para_lifecycle, ACTIVE_CONFIG, CORE_DESCRIPTORS, SPOT_TRAFFIC,
+};
+use polkadot_runtime_parachains::{configuration::HostConfiguration, ParaLifecycle};
 use sp_application_crypto::AppCrypto;
-use sp_core::{H256, ByteArray};
+use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
-	traits::{IdentifyAccount, Verify},
-	MultiSignature as SpMultiSignature,
+	traits::{IdentifyAccount, MaybeDisplay, Verify},
+	FixedPointNumber, FixedU128, MultiSignature as SpMultiSignature, SaturatedConversion,
 };
-use std::error::Error;
+use std::{error::Error, fmt::Debug};
 use subxt::{tx::Signer, utils::MultiSignature, Config, OnlineClient, PolkadotConfig};
-use cumulus_relay_chain_interface::RelayChainInterface;
-use on_demand_primitives::well_known_keys::para_lifecycle;
-use polkadot_runtime_parachains::ParaLifecycle;
-use codec::Decode;
 
 #[subxt::subxt(runtime_metadata_path = "../../artifacts/metadata.scale")]
 pub mod polkadot {}
@@ -104,6 +112,38 @@ pub async fn submit_order(
 	Ok(())
 }
 
+/// Get the spot price from the relay chain.
+pub async fn get_spot_price<Balance>(
+	relay_chain: impl RelayChainInterface + Clone,
+	hash: H256,
+) -> Option<Balance>
+where
+	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
+{
+	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
+	let p_spot_traffic = spot_traffic_storage
+		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
+	let p_active_config = active_config_storage
+		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	if p_spot_traffic.is_some() && p_active_config.is_some() {
+		let spot_traffic = p_spot_traffic.unwrap_or_default(); // TODO: don't unwrap or default.
+		let active_config = p_active_config.unwrap_or_default(); // TODO: don't unwrap or default.
+		let spot_price = spot_traffic.saturating_mul_int(
+			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
+		);
+		Some(Balance::from(spot_price))
+	} else {
+		None
+	}
+}
+
 /// Is this a parathread?
 pub async fn is_parathread(
 	relay_chain: &(impl RelayChainInterface + Clone),
@@ -119,4 +159,39 @@ pub async fn is_parathread(
 
 	let is_parathread = para_lifecycle == Some(ParaLifecycle::Parathread);
 	Ok(is_parathread)
+}
+
+/// Checks if there are any cores allocated to on-demand.
+pub async fn on_demand_cores_available(
+	relay_chain: &(impl RelayChainInterface + Clone),
+	hash: H256,
+	para_id: ParaId,
+) -> Option<bool> {
+	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
+
+	let active_config = active_config_storage
+		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	let active_config = active_config?;
+
+	let core_descriptors_storage =
+		relay_chain.get_storage_by_key(hash, CORE_DESCRIPTORS).await.ok()?;
+	let core_descriptors = core_descriptors_storage
+		.map(|raw| <Vec<CoreDescriptor<u32>>>::decode(&mut &raw[..]))
+		.transpose()
+		.ok()?;
+
+	log::info!(
+		target: LOG_TARGET,
+		"Core Descriptors: {:?}",
+		core_descriptors
+	);
+
+	// for core in 0..active_config.cores {
+
+	// }
+
+	Some(true)
 }

@@ -2,17 +2,15 @@
 //!
 //! NOTE: Inspiration was taken from the Magnet(https://github.com/Magport/Magnet) on-demand integration.
 
+use crate::chain::{get_spot_price, is_parathread, on_demand_cores_available};
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{
 	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
-use futures::{pin_mut, select, Stream, StreamExt, FutureExt};
-use on_demand_primitives::{
-	EnqueuedOrder, OnDemandRuntimeApi, well_known_keys::{ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC},
-};
+use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
+use on_demand_primitives::{well_known_keys::ON_DEMAND_QUEUE, EnqueuedOrder, OnDemandRuntimeApi};
 use polkadot_primitives::OccupiedCoreAssumption;
-use polkadot_runtime_parachains::configuration::HostConfiguration;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::MaintainedTransactionPool;
@@ -20,12 +18,8 @@ use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
-use sp_runtime::{
-	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
-	FixedPointNumber, FixedU128, SaturatedConversion,
-};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
-use crate::chain::is_parathread;
 
 mod chain;
 
@@ -215,7 +209,8 @@ where
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 {
-	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	// let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	let is_parathread = true; // TODO: remove, this is only for testing
 
 	if !is_parathread {
 		log::info!(
@@ -227,10 +222,16 @@ where
 		return Ok(())
 	}
 
-	let is_on_demand_supported = true; // TODO: check from the relay chain.
+	let available = on_demand_cores_available(&relay_chain, p_hash, para_id)
+		.await
+		.ok_or("Failed to check if there are on-demand cores available")?;
 
-	if !is_on_demand_supported {
-		// TODO: probably add some logs
+	if available {
+		log::info!(
+			target: LOG_TARGET,
+			"No cores allocated to on-demand"
+		);
+
 		return Ok(())
 	}
 
@@ -285,38 +286,6 @@ where
 	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
 
 	Ok(())
-}
-
-/// Get the spot price from the relay chain.
-async fn get_spot_price<Balance>(
-	relay_chain: impl RelayChainInterface + Clone,
-	hash: H256,
-) -> Option<Balance>
-where
-	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
-{
-	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
-	let p_spot_traffic = spot_traffic_storage
-		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
-		.transpose()
-		.ok()?;
-
-	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
-	let p_active_config = active_config_storage
-		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
-		.transpose()
-		.ok()?;
-
-	if p_spot_traffic.is_some() && p_active_config.is_some() {
-		let spot_traffic = p_spot_traffic.unwrap_or_default(); // TODO: don't unwrap or default.
-		let active_config = p_active_config.unwrap_or_default(); // TODO: don't unwrap or default.
-		let spot_price = spot_traffic.saturating_mul_int(
-			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
-		);
-		Some(Balance::from(spot_price))
-	} else {
-		None
-	}
 }
 
 async fn new_best_heads(
