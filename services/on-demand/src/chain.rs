@@ -2,16 +2,16 @@
 
 use crate::{
 	chain::polkadot::runtime_types::{
+		pallet_broker::coretime_interface::CoreAssignment,
 		polkadot_parachain_primitives::primitives::Id,
 		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
 	},
-	LOG_TARGET,
 };
 use codec::{Codec, Decode};
-use cumulus_primitives_core::ParaId;
+use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};
 use cumulus_relay_chain_interface::RelayChainInterface;
 use on_demand_primitives::well_known_keys::{
-	para_lifecycle, ACTIVE_CONFIG, CORE_DESCRIPTORS, SPOT_TRAFFIC,
+	core_descriptor, para_lifecycle, ACTIVE_CONFIG, SPOT_TRAFFIC,
 };
 use polkadot_runtime_parachains::{configuration::HostConfiguration, ParaLifecycle};
 use sp_application_crypto::AppCrypto;
@@ -176,22 +176,32 @@ pub async fn on_demand_cores_available(
 
 	let active_config = active_config?;
 
-	let core_descriptors_storage =
-		relay_chain.get_storage_by_key(hash, CORE_DESCRIPTORS).await.ok()?;
-	let core_descriptors = core_descriptors_storage
-		.map(|raw| <Vec<CoreDescriptor<u32>>>::decode(&mut &raw[..]))
-		.transpose()
-		.ok()?;
+	for core in 0..active_config.scheduler_params.num_cores {
+		let core_descriptor_storage = relay_chain
+			.get_storage_by_key(hash, &core_descriptor(CoreIndex(core)))
+			.await
+			.ok()?;
 
-	log::info!(
-		target: LOG_TARGET,
-		"Core Descriptors: {:?}",
-		core_descriptors
-	);
+		let core_descriptor = core_descriptor_storage
+			.map(|raw| <CoreDescriptor<u32>>::decode(&mut &raw[..]))
+			.transpose()
+			.ok()?;
 
-	// for core in 0..active_config.cores {
+		if let Some(descriptor) = core_descriptor {
+			if let Some(work) = descriptor.current_work {
+				let available_core = work
+					.assignments
+					.into_iter()
+					.position(|assignment| match assignment {
+						(CoreAssignment::Pool, _) => true,
+						_ => false,
+					})
+					.is_some();
 
-	// }
+				return Some(available_core)
+			}
+		}
+	}
 
 	Some(true)
 }
