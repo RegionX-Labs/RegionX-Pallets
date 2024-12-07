@@ -55,7 +55,7 @@ where
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let mut url = String::from("ws://"); // <- TODO wss
 	url.push_str(
@@ -104,7 +104,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	log::info!(
 		target: LOG_TARGET,
@@ -149,7 +149,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -222,7 +222,7 @@ where
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	// let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
 	let is_parathread = true; // TODO: remove, this is only for testing
@@ -289,7 +289,8 @@ where
 	}
 
 	// Before placing an order ensure that the criteria for placing an order has been reached.
-	let order_criteria_reached = Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
+	let order_criteria_reached =
+		Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
 
 	if !order_criteria_reached {
 		return Ok(())
