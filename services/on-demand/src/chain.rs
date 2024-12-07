@@ -55,7 +55,7 @@ where
 		let account_id = binding.as_slice();
 		let mut r = [0u8; 32];
 		r.copy_from_slice(account_id);
-		let acc = T::AccountId::try_from(r).ok().unwrap();
+		let acc = T::AccountId::try_from(r).ok().expect("Failed to get account from keystore");
 		Self { account_id: acc.clone(), keystore }
 	}
 }
@@ -95,7 +95,7 @@ pub async fn submit_order(
 	max_amount: u128,
 	keystore: KeystorePtr,
 ) -> Result<(), Box<dyn Error>> {
-	let client = OnlineClient::<PolkadotConfig>::from_url(url).await.unwrap(); // TODO
+	let client = OnlineClient::<PolkadotConfig>::from_url(url).await?;
 
 	let place_order = polkadot::tx()
 		.on_demand_assignment_provider()
@@ -104,8 +104,8 @@ pub async fn submit_order(
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
 	let submit_result = client.tx().sign_and_submit_default(&place_order, &signer_keystore).await;
-	// log::info!("submit_result:{:?}", submit_result);
-	// submit_result.unwrap(); // TODO
+	log::info!("submit_result: {:?}", submit_result);
+	submit_result?;
 
 	Ok(())
 }
@@ -119,20 +119,20 @@ where
 	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
 {
 	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
-	let p_spot_traffic = spot_traffic_storage
+	let spot_traffic = spot_traffic_storage
 		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
 		.transpose()
 		.ok()?;
 
 	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
-	let p_active_config = active_config_storage
+	let active_config = active_config_storage
 		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
 		.transpose()
 		.ok()?;
 
-	if p_spot_traffic.is_some() && p_active_config.is_some() {
-		let spot_traffic = p_spot_traffic.unwrap_or_default(); // TODO: don't unwrap or default.
-		let active_config = p_active_config.unwrap_or_default(); // TODO: don't unwrap or default.
+	if spot_traffic.is_some() && active_config.is_some() {
+		let spot_traffic = spot_traffic.expect("We ensured spot_traffic is Some above; qed");
+		let active_config = active_config.expect("We ensured active_config is Some above; qed");
 		let spot_price = spot_traffic.saturating_mul_int(
 			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
 		);

@@ -259,7 +259,8 @@ where
 
 	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
 	let indx = (height >> slot_width) % authorities.len() as u32;
-	let expected_author = authorities.get(indx as usize).ok_or::<Box<dyn Error>>("TODO".into())?;
+	let expected_author =
+		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
 
 	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
@@ -296,8 +297,9 @@ where
 		return Ok(())
 	}
 
-	let spot_price =
-		get_spot_price::<Balance>(relay_chain, p_hash).await.unwrap_or(1_000u32.into()); // TODO
+	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash)
+		.await
+		.ok_or("Failed to get spot price")?;
 
 	log::info!(
 		target: LOG_TARGET,
