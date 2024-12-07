@@ -108,5 +108,5 @@ substrate-wasm-builder = { version = "24.0.1", default-features = false }
 
 # RegionX Modules
 on-demand-service = { path = "../services/on-demand" }
-on-demand-primitives = { path = "../primitives/on-demand" }
+on-demand-primitives = { path = "../primitives/on-demand", default-features = false }
 pallet-on-demand = { path = "../pallets/on-demand", default-features = false }

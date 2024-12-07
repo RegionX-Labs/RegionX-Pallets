@@ -1,8 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Codec, Encode, Decode};
-use sp_runtime::traits::MaybeDisplay;
+use codec::{Codec, Decode, Encode};
 use cumulus_primitives_core::ParaId;
+use sp_runtime::traits::MaybeDisplay;
 
 pub mod well_known_keys;
 

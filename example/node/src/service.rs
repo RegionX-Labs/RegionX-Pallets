@@ -26,7 +26,7 @@ use cumulus_primitives_core::{
 	relay_chain::{CollatorPair, ValidationCode},
 	ParaId,
 };
-use cumulus_relay_chain_interface::{OverseerHandle, RelayChainInterface};
+use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInterface};
 
 // Substrate Imports
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
@@ -39,9 +39,10 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_keystore::KeystorePtr;
+use sp_runtime::traits::PhantomData;
 
 // RegionX Modules
-use on_demand_service::start_on_demand;
+use on_demand_service::{config::OrderCriteria, start_on_demand};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
@@ -61,6 +62,27 @@ pub type Service = PartialComponents<
 	sc_transaction_pool::FullPool<Block, ParachainClient>,
 	(ParachainBlockImport, Option<Telemetry>, Option<TelemetryWorkerHandle>),
 >;
+
+pub struct OnDemandConfig;
+impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
+	type OrderPlacementCriteria = OrderPlacementCriteria;
+}
+
+pub struct OrderPlacementCriteria;
+impl OrderCriteria for OrderPlacementCriteria {
+	type Block = Block;
+	type P = ParachainClient;
+	type ExPool = sc_transaction_pool::FullPool<Block, ParachainClient>;
+
+	fn should_place_order(
+		parachain: &Self::P,
+		transaction_pool: Arc<Self::ExPool>,
+		height: BlockNumber,
+	) -> bool {
+		// TODO
+		true
+	}
+}
 
 /// Starts a `ServiceBuilder` for a full service.
 ///
@@ -251,10 +273,8 @@ pub async fn start_parachain_node(
 	let backend = params.backend.clone();
 	let mut task_manager = params.task_manager;
 
-	let relay_rpc = polkadot_config.rpc.addr
-		.as_ref()
-		.and_then(|r| r.first())
-		.map(|f| f.listen_addr);
+	let relay_rpc =
+		polkadot_config.rpc.addr.as_ref().and_then(|r| r.first()).map(|f| f.listen_addr);
 
 	let (relay_chain_interface, collator_key) = build_relay_chain_interface(
 		polkadot_config,
@@ -391,7 +411,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand(
+		start_on_demand::<_, _, _, _, _, OnDemandConfig>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),

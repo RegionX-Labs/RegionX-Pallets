@@ -2,17 +2,18 @@
 //!
 //! NOTE: Inspiration was taken from the Magnet(https://github.com/Magport/Magnet) on-demand integration.
 
+use crate::{
+	chain::{get_spot_price, is_parathread, on_demand_cores_available},
+	config::{OnDemandConfig, OrderCriteria},
+};
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{
 	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
-use futures::{pin_mut, select, Stream, StreamExt, FutureExt};
-use on_demand_primitives::{
-	EnqueuedOrder, OnDemandRuntimeApi, well_known_keys::{ACTIVE_CONFIG, ON_DEMAND_QUEUE, SPOT_TRAFFIC},
-};
+use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
+use on_demand_primitives::{well_known_keys::ON_DEMAND_QUEUE, EnqueuedOrder, OnDemandRuntimeApi};
 use polkadot_primitives::OccupiedCoreAssumption;
-use polkadot_runtime_parachains::configuration::HostConfiguration;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::MaintainedTransactionPool;
@@ -20,19 +21,16 @@ use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
-use sp_runtime::{
-	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
-	FixedPointNumber, FixedU128, SaturatedConversion,
-};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
-use crate::chain::is_parathread;
 
 mod chain;
+pub mod config;
 
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<P, R, ExPool, Block, Balance>(
+pub fn start_on_demand<P, R, ExPool, Block, Balance, Config>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,
@@ -56,6 +54,8 @@ where
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let mut url = String::from("ws://"); // <- TODO wss
 	url.push_str(
@@ -64,7 +64,7 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance>(
+	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -82,7 +82,7 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
+async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -102,13 +102,16 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	log::info!(
 		target: LOG_TARGET,
 		"Starting on-demand task"
 	);
 
-	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance>(
+	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -124,7 +127,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	}
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
+async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -144,6 +147,9 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -169,7 +175,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 							hash
 						);
 
-						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance>(
+						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config>(
 							head,
 							height,
 							&*parachain,
@@ -191,7 +197,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool, Balance>(
+async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config>(
 	validation_data: PersistedValidationData,
 	height: RelayBlockNumber,
 	parachain: &P,
@@ -214,8 +220,12 @@ where
 		+ From<u128>,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
-	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	// let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	let is_parathread = true; // TODO: remove, this is only for testing
 
 	if !is_parathread {
 		log::info!(
@@ -227,10 +237,16 @@ where
 		return Ok(())
 	}
 
-	let is_on_demand_supported = true; // TODO: check from the relay chain.
+	let available = on_demand_cores_available(&relay_chain, p_hash, para_id)
+		.await
+		.ok_or("Failed to check if there are on-demand cores available")?;
 
-	if !is_on_demand_supported {
-		// TODO: probably add some logs
+	if available {
+		log::info!(
+			target: LOG_TARGET,
+			"No cores allocated to on-demand"
+		);
+
 		return Ok(())
 	}
 
@@ -243,12 +259,18 @@ where
 
 	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
 	let indx = (height >> slot_width) % authorities.len() as u32;
-	let expected_author = authorities.get(indx as usize).ok_or::<Box<dyn Error>>("TODO".into())?;
+	let expected_author =
+		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
 
 	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
 		// Expected author is not in the keystore therefore we are not responsible for order
 		// creation.
+		log::info!(
+			target: LOG_TARGET,
+			"Waiting for {} to create an order",
+			expected_author
+		);
 		return Ok(())
 	}
 
@@ -268,14 +290,16 @@ where
 	}
 
 	// Before placing an order ensure that the criteria for placing an order has been reached.
-	let order_criteria_reached = true; // TODO: this should be customizable
+	let order_criteria_reached =
+		Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
 
 	if !order_criteria_reached {
 		return Ok(())
 	}
 
-	let spot_price =
-		get_spot_price::<Balance>(relay_chain, p_hash).await.unwrap_or(1_000u32.into()); // TODO
+	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash)
+		.await
+		.ok_or("Failed to get spot price")?;
 
 	log::info!(
 		target: LOG_TARGET,
@@ -285,38 +309,6 @@ where
 	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
 
 	Ok(())
-}
-
-/// Get the spot price from the relay chain.
-async fn get_spot_price<Balance>(
-	relay_chain: impl RelayChainInterface + Clone,
-	hash: H256,
-) -> Option<Balance>
-where
-	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
-{
-	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
-	let p_spot_traffic = spot_traffic_storage
-		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
-		.transpose()
-		.ok()?;
-
-	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
-	let p_active_config = active_config_storage
-		.map(|raw| <HostConfiguration<u32>>::decode(&mut &raw[..]))
-		.transpose()
-		.ok()?;
-
-	if p_spot_traffic.is_some() && p_active_config.is_some() {
-		let spot_traffic = p_spot_traffic.unwrap_or_default(); // TODO: don't unwrap or default.
-		let active_config = p_active_config.unwrap_or_default(); // TODO: don't unwrap or default.
-		let spot_price = spot_traffic.saturating_mul_int(
-			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
-		);
-		Some(Balance::from(spot_price))
-	} else {
-		None
-	}
 }
 
 async fn new_best_heads(
