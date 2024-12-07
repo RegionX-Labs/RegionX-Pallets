@@ -1,11 +1,9 @@
 //! This file contains all the chain related interaction functions.
 
-use crate::{
-	chain::polkadot::runtime_types::{
-		pallet_broker::coretime_interface::CoreAssignment,
-		polkadot_parachain_primitives::primitives::Id,
-		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
-	},
+use crate::chain::polkadot::runtime_types::{
+	pallet_broker::coretime_interface::CoreAssignment,
+	polkadot_parachain_primitives::primitives::Id,
+	polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
 };
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};

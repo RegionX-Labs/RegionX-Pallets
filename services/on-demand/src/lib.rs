@@ -2,7 +2,10 @@
 //!
 //! NOTE: Inspiration was taken from the Magnet(https://github.com/Magport/Magnet) on-demand integration.
 
-use crate::chain::{get_spot_price, is_parathread, on_demand_cores_available};
+use crate::{
+	chain::{get_spot_price, is_parathread, on_demand_cores_available},
+	config::{OnDemandConfig, OrderCriteria},
+};
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{
 	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
@@ -22,11 +25,12 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDis
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 
 mod chain;
+pub mod config;
 
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<P, R, ExPool, Block, Balance>(
+pub fn start_on_demand<P, R, ExPool, Block, Balance, Config>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,
@@ -50,6 +54,8 @@ where
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
 {
 	let mut url = String::from("ws://"); // <- TODO wss
 	url.push_str(
@@ -58,7 +64,7 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance>(
+	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -76,7 +82,7 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
+async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -96,13 +102,16 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
 {
 	log::info!(
 		target: LOG_TARGET,
 		"Starting on-demand task"
 	);
 
-	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance>(
+	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -118,7 +127,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance>(
 	}
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
+async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -138,6 +147,9 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -163,7 +175,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 							hash
 						);
 
-						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance>(
+						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config>(
 							head,
 							height,
 							&*parachain,
@@ -185,7 +197,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance>(
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool, Balance>(
+async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config>(
 	validation_data: PersistedValidationData,
 	height: RelayBlockNumber,
 	parachain: &P,
@@ -208,6 +220,9 @@ where
 		+ From<u128>,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
+	Config: OnDemandConfig + 'static,
+	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>
 {
 	// let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
 	let is_parathread = true; // TODO: remove, this is only for testing
@@ -274,7 +289,7 @@ where
 	}
 
 	// Before placing an order ensure that the criteria for placing an order has been reached.
-	let order_criteria_reached = true; // TODO: this should be customizable
+	let order_criteria_reached = Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
 
 	if !order_criteria_reached {
 		return Ok(())
