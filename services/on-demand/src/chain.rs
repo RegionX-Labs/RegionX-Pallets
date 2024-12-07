@@ -203,5 +203,5 @@ pub async fn on_demand_cores_available(
 		}
 	}
 
-	Some(true)
+	Some(false)
 }

@@ -250,6 +250,11 @@ where
 	{
 		// Expected author is not in the keystore therefore we are not responsible for order
 		// creation.
+		log::info!(
+			target: LOG_TARGET,
+			"Waiting for {} to create an order",
+			expected_author
+		);
 		return Ok(())
 	}
 
