@@ -2,13 +2,19 @@
 
 ### Testing process
 
+
+Generate relay chain spec:
+```
+./polkadot build-spec --disable-default-bootnode --chain rococo-dev > artifacts/rococo.json
+```
+
 Start the relay chain:
 ```
 ./polkadot \
 --alice \
 --validator \
 --base-path /tmp/relay/alice \
---chain rococo-dev \
+--chain artifacts/rococo.json \
 --port 30333 \
 --rpc-port 9944 \
 --unsafe-force-node-key-generation
@@ -39,7 +45,8 @@ Start the collator node:
 --unsafe-force-node-key-generation \
 -- \
 --execution wasm \
---chain rococo-dev \
+--chain artifacts/rococo.json \
 --port 30343 \
---rpc-port 9977
+--rpc-port 9977 \
+--bootnodes /ip4/127.0.0.1/tcp/30333/ws/p2p/12D3KooWSoY6HPbvLbiL6HXg8JLH57p2tfxnbzYStV3Rk7X5VrK3
 ```
