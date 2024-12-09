@@ -37,7 +37,7 @@ Start the collator node:
 --collator \
 --force-authoring \
 --chain dev \
---base-path ./tmp/para/alice \
+--base-path /tmp/para/alice \
 --port 40333 \
 --rpc-port 8844 \
 --rpc-cors all \
