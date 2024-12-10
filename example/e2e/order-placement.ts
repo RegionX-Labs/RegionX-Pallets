@@ -23,19 +23,19 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
-    // const rcHeight: number = (await relayApi.query.system.number()).toJSON() as number;
-
-    // TODO: assign a core to on-demand
+    // NOTE: The scheduler updates CoreDescriptors only during the para inherent process 
+    // (specifically when backing a candidate). This means that if we only have an 
+    // on-demand chain without any other chains, assigning a core to the insta pool 
+    // will remain stuck in CoreSchedules.
+    //
+    // Because of this, we will always run a system parachain in our test cases.
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
-    // ^^^^ For some reason the assignment is going into the schedule.
-    // TODO: Look into some test examples from polkadot-sdk
 
     // TODO: register parachain
     // TODO: check if it is placing orders (SHOULD because the criteria is always returning true)
 
     // TODO: Once the criteria is updated to actually track something(e.g. number of pending transactions)
     // then ensure it is only placing orders when required.
-
 }
 
 orderPlacementWorks().then(() => console.log("\n✅ Test complete ✅"));
