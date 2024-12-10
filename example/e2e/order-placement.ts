@@ -23,13 +23,15 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
+    // Assigning a core to the instantaneous coretime pool:
+    await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
+    // ^^^^^^^^^^^
     // NOTE: The scheduler updates CoreDescriptors only during the para inherent process 
     // (specifically when backing a candidate). This means that if we only have an 
     // on-demand chain without any other chains, assigning a core to the insta pool 
     // will remain stuck in CoreSchedules.
     //
-    // Because of this, we will always run a system parachain in our test cases.
-    await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
+    // Because of this, we will always run a system parachain in our test cases.   
 
     // TODO: register parachain
     // TODO: check if it is placing orders (SHOULD because the criteria is always returning true)
