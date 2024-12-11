@@ -224,8 +224,7 @@ where
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
-	// let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
-	let is_parathread = true; // TODO: remove, this is only for testing
+	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
 
 	if !is_parathread {
 		log::info!(

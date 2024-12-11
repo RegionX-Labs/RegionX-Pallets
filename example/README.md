@@ -12,12 +12,12 @@ zombienet-linux -p native spawn zombienet.toml
 
 Generate parachain genesis wasm:
 ```
-./parachain-example-node export-genesis-wasm --chain dev artifacts/para.wasm
+./parachain-example-node export-genesis-wasm --chain local artifacts/para.wasm
 ```
 
 Generate parachain genesis state:
 ```
-./parachain-example-node export-genesis-state --chain dev artifacts/para-genesis
+./parachain-example-node export-genesis-state --chain local artifacts/para-genesis
 ```
 
 Start the collator node:
@@ -26,7 +26,7 @@ Start the collator node:
 --alice \
 --collator \
 --force-authoring \
---chain dev \
+--chain local \
 --base-path /tmp/para/alice \
 --port 40333 \
 --rpc-port 8844 \
@@ -35,7 +35,7 @@ Start the collator node:
 --unsafe-force-node-key-generation \
 -- \
 --execution wasm \
---chain /tmp/zombie-2ea032c0d095398b670c5a5992c7338d_-62904-wjIT2vatTkhd/alice/cfg/rococo-local.json
+--chain /tmp/zombie-f5520ca2231a99ff4db7066d9eed4d86_-33065-2ywXletmYQl4/alice/cfg/rococo-local.json
 --port 30343 \
 --rpc-port 9977 \
 --bootnodes /ip4/127.0.0.1/tcp/30333/ws/p2p/12D3KooWQCkBm1BYtkHpocxCwMgR8yjitEeHGx8spzcDLGt2gkBm

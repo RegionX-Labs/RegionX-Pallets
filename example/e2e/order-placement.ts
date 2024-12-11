@@ -1,8 +1,7 @@
 import { ApiPromise, Keyring, WsProvider } from "@polkadot/api";
 import { SignerOptions, SubmittableExtrinsic } from "@polkadot/api/types";
-import { compactAddLength } from '@polkadot/util';
 import { KeyringPair } from "@polkadot/keyring/types";
-import { promises as fs } from 'fs';
+import fs from 'fs';
 
 const RELAY_ENDPOINT = "ws://127.0.0.1:9944";
 const PARA_ENDPOINT = "ws://127.0.0.1:8844";
@@ -37,17 +36,18 @@ async function orderPlacementWorks() {
 
     const alice = keyring.addFromUri("//Alice");
 
-    // await submitExtrinsic(alice, relayApi.tx.registrar.reserve(), {});
+    await submitExtrinsic(alice, relayApi.tx.registrar.reserve(), {});
     const paraId = (await relayApi.query.registrar.nextFreeParaId()).toJSON() as number - 1;
 
-    const genesisHead = await readFileAsUint8Array("../artifacts/para-genesis");
-    const wasm = await readFileAsUint8Array("../artifacts/para.wasm");
+    const genesisHead = fs.readFileSync("../artifacts/para-genesis").toString();
+    const wasm = fs.readFileSync("../artifacts/para.wasm").toString();
+
     await submitExtrinsic(
       alice, 
       relayApi.tx.registrar.register(
         paraId,
-        compactAddLength(genesisHead),
-        compactAddLength(wasm)
+        genesisHead,
+        wasm,
       ),
       {}
     );
@@ -93,9 +93,4 @@ async function submitExtrinsic(
   } catch (e) {
     console.log(e);
   }
-}
-
-async function readFileAsUint8Array(filePath: string): Promise<Uint8Array> {
-    const data = await fs.readFile(filePath);
-    return new Uint8Array(data);
 }
