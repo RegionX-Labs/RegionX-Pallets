@@ -4,3 +4,7 @@
 **/parachain-example-node
 **/polkadot-execute-worker
 **/polkadot-prepare-worker
+**/polkadot-parachain
+**/node_modules
+**/artifacts
+**/tmp

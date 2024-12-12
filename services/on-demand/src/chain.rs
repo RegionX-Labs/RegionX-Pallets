@@ -1,15 +1,18 @@
 //! This file contains all the chain related interaction functions.
 
-use crate::chain::polkadot::runtime_types::{
-	pallet_broker::coretime_interface::CoreAssignment,
-	polkadot_parachain_primitives::primitives::Id,
-	polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
+use crate::chain::polkadot::{
+	on_demand_assignment_provider::storage::types::queue_status::QueueStatus,
+	runtime_types::{
+		pallet_broker::coretime_interface::CoreAssignment,
+		polkadot_parachain_primitives::primitives::Id,
+		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
+	},
 };
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};
 use cumulus_relay_chain_interface::RelayChainInterface;
 use on_demand_primitives::well_known_keys::{
-	core_descriptor, para_lifecycle, ACTIVE_CONFIG, SPOT_TRAFFIC,
+	core_descriptor, para_lifecycle, ACTIVE_CONFIG, QUEUE_STATUS,
 };
 use polkadot_runtime_parachains::{configuration::HostConfiguration, ParaLifecycle};
 use sp_application_crypto::AppCrypto;
@@ -17,7 +20,7 @@ use sp_core::{ByteArray, H256};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	traits::{IdentifyAccount, MaybeDisplay, Verify},
-	FixedPointNumber, FixedU128, MultiSignature as SpMultiSignature, SaturatedConversion,
+	MultiSignature as SpMultiSignature, SaturatedConversion,
 };
 use std::{error::Error, fmt::Debug};
 use subxt::{tx::Signer, utils::MultiSignature, Config, OnlineClient, PolkadotConfig};
@@ -118,9 +121,9 @@ pub async fn get_spot_price<Balance>(
 where
 	Balance: Codec + MaybeDisplay + 'static + Debug + From<u128>,
 {
-	let spot_traffic_storage = relay_chain.get_storage_by_key(hash, SPOT_TRAFFIC).await.ok()?;
-	let spot_traffic = spot_traffic_storage
-		.map(|raw| <FixedU128>::decode(&mut &raw[..]))
+	let queue_status_storage = relay_chain.get_storage_by_key(hash, QUEUE_STATUS).await.ok()?;
+	let queue_status = queue_status_storage
+		.map(|raw| <QueueStatus>::decode(&mut &raw[..]))
 		.transpose()
 		.ok()?;
 
@@ -130,10 +133,10 @@ where
 		.transpose()
 		.ok()?;
 
-	if spot_traffic.is_some() && active_config.is_some() {
-		let spot_traffic = spot_traffic.expect("We ensured spot_traffic is Some above; qed");
+	if queue_status.is_some() && active_config.is_some() {
+		let traffic = queue_status.expect("We ensured spot_traffic is Some above; qed").traffic;
 		let active_config = active_config.expect("We ensured active_config is Some above; qed");
-		let spot_price = spot_traffic.saturating_mul_int(
+		let spot_price = traffic.0.saturating_mul(
 			active_config.scheduler_params.on_demand_base_fee.saturated_into::<u128>(),
 		);
 		Some(Balance::from(spot_price))
