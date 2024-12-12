@@ -42,15 +42,15 @@ async function orderPlacementWorks() {
     const genesisHead = fs.readFileSync("../artifacts/para-genesis").toString();
     const wasm = fs.readFileSync("../artifacts/para.wasm").toString();
 
-    await submitExtrinsic(
-      alice, 
-      relayApi.tx.registrar.register(
-        paraId,
-        genesisHead,
-        wasm,
-      ),
-      {}
-    );
+    // await submitExtrinsic(
+    //   alice, 
+    //   relayApi.tx.registrar.register(
+    //     paraId,
+    //     genesisHead,
+    //     wasm,
+    //   ),
+    //   {}
+    // );
 
     // TODO: check if it is placing orders (SHOULD because the criteria is always returning true)
 

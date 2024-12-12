@@ -35,7 +35,7 @@ Start the collator node:
 --unsafe-force-node-key-generation \
 -- \
 --execution wasm \
---chain /tmp/zombie-f5520ca2231a99ff4db7066d9eed4d86_-33065-2ywXletmYQl4/alice/cfg/rococo-local.json
+--chain /tmp/zombie-5ee6a2f6c05b95cbb2b51bd07112b2b7_-63416-R5iP07csFccq/alice/cfg/rococo-local.json
 --port 30343 \
 --rpc-port 9977 \
 --bootnodes /ip4/127.0.0.1/tcp/30333/ws/p2p/12D3KooWQCkBm1BYtkHpocxCwMgR8yjitEeHGx8spzcDLGt2gkBm
