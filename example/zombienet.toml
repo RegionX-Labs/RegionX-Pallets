@@ -13,6 +13,14 @@ validator = true
 ws_port = 9955
 
 [[parachains]]
+id = 1000
+
+[parachains.collator]
+name = "dave"
+ws_port = 8844
+command = "polkadot-parachain"
+
+[[parachains]]
 id = 2000
 
 [parachains.collator]
