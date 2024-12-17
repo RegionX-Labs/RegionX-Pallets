@@ -217,7 +217,7 @@ impl_runtime_apis! {
 	}
 
 	impl on_demand_primitives::OnDemandRuntimeApi<Block, Balance, BlockNumber> for Runtime {
-		fn slot_width()-> u32{
+		fn slot_width() -> u32{
 			OnDemand::slot_width()
 		}
 	}

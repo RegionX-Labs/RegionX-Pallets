@@ -7,9 +7,9 @@ use sp_runtime::Vec;
 pub const ON_DEMAND_QUEUE: &[u8] =
 	&hex_literal::hex!["8f32430b49607f8d60bfd3a003ddf4b53f35b69d817556cf6b886e5b4f01fbdc"];
 
-/// OnDemandAssignmentProvider SpotTraffic
-pub const SPOT_TRAFFIC: &[u8] =
-	&hex_literal::hex!["8f32430b49607f8d60bfd3a003ddf4b5c9308a8e0e640735727536bd9069b11e"];
+/// OnDemandAssignmentProvider QueueStatus
+pub const QUEUE_STATUS: &[u8] =
+	&hex_literal::hex!["8f32430b49607f8d60bfd3a003ddf4b58bf29330833ea7904c7209f4ce9d917a"];
 
 /// Configuration ActiveConfig
 pub const ACTIVE_CONFIG: &[u8] =
