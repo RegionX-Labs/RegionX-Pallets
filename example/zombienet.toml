@@ -13,9 +13,9 @@ validator = true
 ws_port = 9955
 
 [[parachains]]
-id = 1000
+id = 2000
 
 [parachains.collator]
 name = "charlie"
 ws_port = 9988
-command = "polkadot-parachain"
+command = "parachain-example-node"
