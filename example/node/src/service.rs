@@ -79,7 +79,7 @@ impl OrderCriteria for OrderPlacementCriteria {
 		transaction_pool: Arc<Self::ExPool>,
 		height: BlockNumber,
 	) -> bool {
-		// TODO
+		// TODO: add an implementation where we check the combined weight of the txs in the pool.
 		true
 	}
 }

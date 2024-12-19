@@ -229,9 +229,8 @@ where
 	if !is_parathread {
 		log::info!(
 			target: LOG_TARGET,
-			"Not a parathread, switching to bulk coretime",
+			"Not a parathread, relying on bulk coretime",
 		);
-		// TODO: switch to bulk (is there actually anything to be done?)
 
 		return Ok(())
 	}

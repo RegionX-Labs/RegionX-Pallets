@@ -11,8 +11,9 @@ const PARA_ID = 2000;
 
 const CHARLIE = "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y";
 const EVE = "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw";
+const FERDIE = "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL";
 
-const COLLATORS = [CHARLIE, EVE];
+const COLLATORS = [CHARLIE, EVE, FERDIE];
 
 const keyring = new Keyring({ type: "sr25519" });
 
@@ -46,7 +47,7 @@ async function orderPlacementWorks() {
 
     await force(relayApi, relayApi.tx.parasSudoWrapper.sudoScheduleParachainDowngrade(PARA_ID));
     // Wait for new sesion for the parachain to downgrade:
-    await sleep(100 * 1000);
+    await sleep(120 * 1000);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     log(`Para height after switching to on-demand: ${newParaHeight}`);
@@ -61,6 +62,7 @@ async function orderPlacementWorks() {
           console.log(`${event.method} : ${event.data}`);
           const orderPlacer = event.data[2].toString();
 
+          // Ensure orders are not always placed by the same collator:
           assert(orderPlacer !== previousPlacer);
           assert(COLLATORS.includes(orderPlacer));
 
@@ -68,8 +70,6 @@ async function orderPlacementWorks() {
         }
       });
     });
-
-    // TODO: check if it is placing orders (SHOULD because the criteria is always returning true)
 
     // TODO: Once the criteria is updated to actually track something(e.g. number of pending transactions)
     // then ensure it is only placing orders when required.
