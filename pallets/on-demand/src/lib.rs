@@ -25,6 +25,12 @@ pub mod pallet {
 		/// Block number type.
 		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen;
 
+		type ThresholdParameter: Parameter
+			+ Member
+			+ Default
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen;
+
 		/// Weight Info
 		type WeightInfo: WeightInfo;
 	}
@@ -36,6 +42,10 @@ pub mod pallet {
 	#[pallet::getter(fn slot_width)]
 	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn threshold_parameter)]
+	pub type ThresholdParameter<T: Config> = StorageValue<_, T::ThresholdParameter, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -46,6 +56,20 @@ pub mod pallet {
 	#[pallet::error]
 	#[derive(PartialEq)]
 	pub enum Error<T> {}
+
+	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		/// Initial threshold parameter.
+		pub threshold_parameter: T::ThresholdParameter,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			ThresholdParameter::<T>::set(self.threshold_parameter.clone());
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {

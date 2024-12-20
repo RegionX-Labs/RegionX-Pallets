@@ -307,5 +307,6 @@ impl pallet_on_demand::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AdminOrigin = EnsureRoot<AccountId>;
 	type BlockNumber = BlockNumber;
+	type ThresholdParameter = Balance; // Represents fee threshold.
 	type WeightInfo = ();
 }
