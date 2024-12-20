@@ -6416,6 +6416,7 @@ name = "on-demand-primitives"
 version = "0.1.0"
 dependencies = [
  "cumulus-primitives-core",
+ "frame-support",
  "hex-literal",
  "parity-scale-codec",
  "scale-info",
@@ -7278,6 +7279,7 @@ dependencies = [
 name = "pallet-on-demand"
 version = "0.1.0"
 dependencies = [
+ "on-demand-primitives",
  "parity-scale-codec",
  "polkadot-sdk-frame",
  "scale-info",

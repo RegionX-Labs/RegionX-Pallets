@@ -72,6 +72,8 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 
+pub type ThresholdParameter = Balance;
+
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
 pub type SignedExtra = (

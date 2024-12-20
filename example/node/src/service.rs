@@ -102,7 +102,8 @@ impl OrderCriteria for OrderPlacementCriteria {
 			total_fees = total_fees.saturating_add(fee_details.final_fee());
 		}
 
-		total_fees >= OnDemand::threshold_parameter()
+		let fee_threshold = parachain.runtime_api().threshold_parameter();
+		total_fees >= fee_threshold
 	}
 }
 

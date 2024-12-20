@@ -15,6 +15,9 @@ scale-info = { workspace = true, default-features = false, features = ["derive"]
 # Substrate
 frame = { workspace = true, default-features = false, features = ["experimental", "runtime"] }
 
+# Local
+on-demand-primitives = { workspace = true, default-features = false }
+
 [dev-dependencies]
 serde = { workspace = true }
 smallvec = { workspace = true }
@@ -28,5 +31,6 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"frame/std",
+	"on-demand-primitives/std",
 ]
 try-runtime = ["frame/try-runtime"]

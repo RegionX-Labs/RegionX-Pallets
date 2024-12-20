@@ -35,11 +35,7 @@ pub mod pallet {
 		/// transactions from the pool, or their total fees.
 		///
 		/// NOTE: If there isn't a threshold parameter, this can simply be set to `()`.
-		type ThresholdParameter: Parameter
-			+ Member
-			+ Default
-			+ MaybeSerializeDeserialize
-			+ MaxEncodedLen;
+		type ThresholdParameter: on_demand_primitives::ThresholdParameterT;
 
 		/// Weight Info
 		type WeightInfo: WeightInfo;
