@@ -40,6 +40,11 @@ use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerH
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::PhantomData;
+use sp_api::ProvideRuntimeApi;
+use sc_transaction_pool_api::TransactionPool;
+use sc_client_api::UsageProvider;
+use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
+use codec::Encode;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -68,6 +73,10 @@ impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
 	type OrderPlacementCriteria = OrderPlacementCriteria;
 }
 
+// TODO: add an implementation where we check the combined weight of the txs in the pool.
+//
+// NOTE: weight can be read from `DispatchInfo`
+
 pub struct OrderPlacementCriteria;
 impl OrderCriteria for OrderPlacementCriteria {
 	type Block = Block;
@@ -79,7 +88,21 @@ impl OrderCriteria for OrderPlacementCriteria {
 		transaction_pool: Arc<Self::ExPool>,
 		height: BlockNumber,
 	) -> bool {
-		// TODO: add an implementation where we check the combined weight of the txs in the pool.
+		let pending_iterator = transaction_pool.ready();
+		let block_hash = parachain.usage_info().chain.best_hash;
+
+		for pending_tx in pending_iterator {
+			let pending_tx_data = pending_tx.data.clone();
+			let utx_length = pending_tx_data.encode().len() as u32;
+
+			let fee_details = parachain
+				.runtime_api()
+				.query_fee_details(block_hash, pending_tx_data, utx_length)
+				.ok().unwrap(); // TODO
+
+			let final_fee = fee_details.final_fee();
+		}
+
 		true
 	}
 }
