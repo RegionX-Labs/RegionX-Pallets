@@ -25,6 +25,16 @@ pub mod pallet {
 		/// Block number type.
 		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen;
 
+		/// Given that we want to keep this pallet as generic as possible, we don't assume the type
+		/// of the threshold.
+		///
+		/// We are adding this for implementations that have some kind of threshold and want it to
+		/// be stored within the runtime.
+		///
+		/// For example, this threshold could represent the total weight of all the ready
+		/// transactions from the pool, or their total fees.
+		///
+		/// NOTE: If there isn't a threshold parameter, this can simply be set to `()`.
 		type ThresholdParameter: Parameter
 			+ Member
 			+ Default
@@ -42,6 +52,7 @@ pub mod pallet {
 	#[pallet::getter(fn slot_width)]
 	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	/// The threshold parameter stored in the runtime state.
 	#[pallet::storage]
 	#[pallet::getter(fn threshold_parameter)]
 	pub type ThresholdParameter<T: Config> = StorageValue<_, T::ThresholdParameter, ValueQuery>;
