@@ -17,6 +17,12 @@ pub trait ThresholdParameterT: Parameter + Member + Default + MaybeSerializeDese
 {
 }
 
+impl<T> ThresholdParameterT for T
+where
+    T: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen,
+{
+}
+
 sp_api::decl_runtime_apis! {
 	#[api_version(2)]
 	pub trait OnDemandRuntimeApi<Balance, BlockNumber, ThresholdParameter> where
