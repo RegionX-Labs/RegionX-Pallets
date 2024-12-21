@@ -29,15 +29,20 @@ use cumulus_primitives_core::{
 use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInterface};
 
 // Substrate Imports
+use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
+use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
+use parachain_example_runtime::OnDemand;
+use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
-use sc_client_api::Backend;
+use sc_client_api::{Backend, UsageProvider};
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 use sc_network::NetworkBlock;
 use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
-use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
+use sp_api::ProvideRuntimeApi;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::PhantomData;
 
@@ -74,13 +79,31 @@ impl OrderCriteria for OrderPlacementCriteria {
 	type P = ParachainClient;
 	type ExPool = sc_transaction_pool::FullPool<Block, ParachainClient>;
 
+	// Checks if the fee threshold has been reached.
 	fn should_place_order(
 		parachain: &Self::P,
 		transaction_pool: Arc<Self::ExPool>,
 		height: BlockNumber,
 	) -> bool {
-		// TODO: add an implementation where we check the combined weight of the txs in the pool.
-		true
+		let pending_iterator = transaction_pool.ready();
+		let block_hash = parachain.usage_info().chain.best_hash;
+		let mut total_fees = Balance::from(0u32);
+
+		for pending_tx in pending_iterator {
+			let pending_tx_data = pending_tx.data.clone();
+			let utx_length = pending_tx_data.encode().len() as u32;
+
+			let fee_details = parachain
+				.runtime_api()
+				.query_fee_details(block_hash, pending_tx_data, utx_length)
+				.ok()
+				.unwrap(); // TODO
+
+			total_fees = total_fees.saturating_add(fee_details.final_fee());
+		}
+
+		let fee_threshold = parachain.runtime_api().threshold_parameter();
+		total_fees >= fee_threshold
 	}
 }
 

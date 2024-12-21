@@ -25,6 +25,18 @@ pub mod pallet {
 		/// Block number type.
 		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen;
 
+		/// Given that we want to keep this pallet as generic as possible, we don't assume the type
+		/// of the threshold.
+		///
+		/// We are adding this for implementations that have some kind of threshold and want it to
+		/// be stored within the runtime.
+		///
+		/// For example, this threshold could represent the total weight of all the ready
+		/// transactions from the pool, or their total fees.
+		///
+		/// NOTE: If there isn't a threshold parameter, this can simply be set to `()`.
+		type ThresholdParameter: Member + Parameter + Default + MaybeSerializeDeserialize + MaxEncodedLen;
+
 		/// Weight Info
 		type WeightInfo: WeightInfo;
 	}
@@ -36,6 +48,11 @@ pub mod pallet {
 	#[pallet::getter(fn slot_width)]
 	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	/// The threshold parameter stored in the runtime state.
+	#[pallet::storage]
+	#[pallet::getter(fn threshold_parameter)]
+	pub type ThresholdParameter<T: Config> = StorageValue<_, T::ThresholdParameter, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -46,6 +63,20 @@ pub mod pallet {
 	#[pallet::error]
 	#[derive(PartialEq)]
 	pub enum Error<T> {}
+
+	#[pallet::genesis_config]
+	#[derive(DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		/// Initial threshold parameter.
+		pub threshold_parameter: T::ThresholdParameter,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			ThresholdParameter::<T>::set(self.threshold_parameter.clone());
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {

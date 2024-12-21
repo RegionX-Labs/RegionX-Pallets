@@ -44,7 +44,7 @@ use sp_version::RuntimeVersion;
 use super::{
 	AccountId, Balance, Block, BlockNumber, ConsensusHook, Executive, InherentDataExt, Nonce,
 	OnDemand, ParachainSystem, Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System,
-	TransactionPayment, SLOT_DURATION, VERSION,
+	ThresholdParameter, TransactionPayment, SLOT_DURATION, VERSION,
 };
 
 // we move some impls outside so we can easily use them with `docify`.
@@ -216,9 +216,12 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl on_demand_primitives::OnDemandRuntimeApi<Block, Balance, BlockNumber> for Runtime {
-		fn slot_width() -> u32{
+	impl on_demand_primitives::OnDemandRuntimeApi<Block, Balance, BlockNumber, ThresholdParameter> for Runtime {
+		fn slot_width() -> u32 {
 			OnDemand::slot_width()
+		}
+		fn threshold_parameter() -> ThresholdParameter {
+			OnDemand::threshold_parameter()
 		}
 	}
 

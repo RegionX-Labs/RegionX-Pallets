@@ -12,7 +12,9 @@ use cumulus_primitives_core::{
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
-use on_demand_primitives::{well_known_keys::ON_DEMAND_QUEUE, EnqueuedOrder, OnDemandRuntimeApi};
+use on_demand_primitives::{
+	well_known_keys::ON_DEMAND_QUEUE, EnqueuedOrder, OnDemandRuntimeApi, ThresholdParameterT,
+};
 use polkadot_primitives::OccupiedCoreAssumption;
 use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
@@ -30,7 +32,7 @@ pub mod config;
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<P, R, ExPool, Block, Balance, Config>(
+pub fn start_on_demand<P, R, ExPool, Block, Balance, Config, ThresholdParameter>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,
@@ -52,7 +54,9 @@ where
 		+ From<u128>,
 	R: RelayChainInterface + Clone + 'static,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ThresholdParameter: ThresholdParameterT,
+	P::Api: AuraApi<Block, AuthorityId>
+		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
@@ -64,14 +68,15 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task = run_on_demand_task::<P, R, Block, ExPool, Balance, Config>(
-		para_id,
-		parachain,
-		relay_chain,
-		keystore,
-		transaction_pool,
-		url,
-	);
+	let on_demand_task = run_on_demand_task::<
+		P,
+		R,
+		Block,
+		ExPool,
+		Balance,
+		Config,
+		ThresholdParameter,
+	>(para_id, parachain, relay_chain, keystore, transaction_pool, url);
 
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"on-demand order placement task",
@@ -82,7 +87,7 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
+async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -101,7 +106,9 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 		+ From<u128>,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ThresholdParameter: ThresholdParameterT,
+	P::Api: AuraApi<Block, AuthorityId>
+		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
@@ -111,14 +118,15 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 		"Starting on-demand task"
 	);
 
-	let relay_chain_notification = follow_relay_chain::<P, R, Block, ExPool, Balance, Config>(
-		para_id,
-		parachain,
-		relay_chain,
-		keystore,
-		transaction_pool,
-		relay_url,
-	);
+	let relay_chain_notification =
+		follow_relay_chain::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+			para_id,
+			parachain,
+			relay_chain,
+			keystore,
+			transaction_pool,
+			relay_url,
+		);
 
 	// let event_notification = event_notification(para_id, url, order_record);
 	select! {
@@ -127,7 +135,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config>(
 	}
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
+async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -146,7 +154,9 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 		+ From<u128>,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ThresholdParameter: ThresholdParameterT,
+	P::Api: AuraApi<Block, AuthorityId>
+		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
@@ -175,7 +185,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 							hash
 						);
 
-						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config>(
+						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
 							head,
 							height,
 							&*parachain,
@@ -197,7 +207,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config>(
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config>(
+async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdParameter>(
 	validation_data: PersistedValidationData,
 	height: RelayBlockNumber,
 	parachain: &P,
@@ -219,7 +229,9 @@ where
 		+ Copy
 		+ From<u128>,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	P::Api: AuraApi<Block, AuthorityId> + OnDemandRuntimeApi<Block, Balance, RelayBlockNumber>,
+	ThresholdParameter: ThresholdParameterT,
+	P::Api: AuraApi<Block, AuthorityId>
+		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
