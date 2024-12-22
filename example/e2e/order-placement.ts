@@ -53,8 +53,11 @@ async function orderPlacementWorks() {
     log(`Para height after switching to on-demand: ${newParaHeight}`);
     assert(newParaHeight > paraHeight, "Para should continue block production");
 
+    // Threshold not set, criteria should always be met.
+    const iterations = 3;
     let previousPlacer = '';
-    await relayApi.query.system.events((events: any) => {
+    let counter = 0;
+    await new Promise((resolve, _reject) => relayApi.query.system.events((events: any) => {
       events.forEach((record: EventRecord) => {
         const { event } = record;
 
@@ -67,9 +70,16 @@ async function orderPlacementWorks() {
           assert(COLLATORS.includes(orderPlacer));
 
           previousPlacer = orderPlacer;
+          counter++;
         }
       });
-    });
+
+      if(counter >= iterations) resolve('');
+    }));
+
+    // TODO: Once threshold is set ensure it is still not producing blocks given the criteria.
+
+    // TODO: meet the criteria and expect an on-demand order.
 
     // TODO: Once the criteria is updated to actually track something(e.g. number of pending transactions)
     // then ensure it is only placing orders when required.
@@ -119,52 +129,3 @@ const log = (message: string) => {
   // Green log.
   console.log("\x1b[32m%s\x1b[0m", message);
 }
-
-/*
-2024-12-20 18:42:11 [Parachain] 💤 Idle (0 peers), best: #5 (0xd386…54f5), finalized #5 (0xd386…54f5), ⬇ 0.1kiB/s ⬆ 0.1kiB/s    
-2024-12-20 18:42:12 [Relaychain] 🏆 Imported #43 (0xfd8f…2e22 → 0x8f6f…7dce)    
-2024-12-20 18:42:12 [Parachain] New best head: 0x8f6f…7dce    
-
-====================
-
-Version: 0.1.0-fc942848e22
-
-   0: sp_panic_handler::set::{{closure}}
-   1: std::panicking::rust_panic_with_hook
-   2: std::panicking::begin_panic_handler::{{closure}}
-   3: std::sys::backtrace::__rust_end_short_backtrace
-   4: rust_begin_unwind
-   5: core::panicking::panic_fmt
-   6: core::option::expect_failed
-   7: tracing::span::Span::in_scope
-   8: sp_io::storage::get_version_1
-   9: sp_io::storage::get
-  10: frame_support::storage::unhashed::get
-  11: <parachain_example_node::service::OrderPlacementCriteria as on_demand_service::config::OrderCriteria>::should_place_order
-  12: on_demand_service::follow_relay_chain::{{closure}}
-  13: on_demand_service::run_on_demand_task::{{closure}}::{{closure}}::{{closure}}
-  14: <core::panic::unwind_safe::AssertUnwindSafe<F> as core::future::future::Future>::poll
-  15: <futures_util::future::future::Map<Fut,F> as core::future::future::Future>::poll
-  16: <sc_service::task_manager::prometheus_future::PrometheusFuture<T> as core::future::future::Future>::poll
-  17: <futures_util::future::select::Select<A,B> as core::future::future::Future>::poll
-  18: <tracing_futures::Instrumented<T> as core::future::future::Future>::poll
-  19: tokio::runtime::park::CachedParkThread::block_on
-  20: sc_service::task_manager::SpawnTaskHandle::spawn_inner::{{closure}}
-  21: tokio::runtime::task::core::Core<T,S>::poll
-  22: tokio::runtime::task::harness::Harness<T,S>::poll
-  23: tokio::runtime::blocking::pool::Inner::run
-  24: std::sys::backtrace::__rust_begin_short_backtrace
-  25: core::ops::function::FnOnce::call_once{{vtable.shim}}
-  26: std::sys::pal::unix::thread::Thread::new::thread_start
-  27: start_thread
-             at ./nptl/pthread_create.c:447:8
-  28: __GI___clone3
-             at ./misc/../sysdeps/unix/sysv/linux/x86_64/clone3.S:78:0
-
-
-Thread 'tokio-runtime-worker' panicked at '`get_version_1` called outside of an Externalities-provided environment.', /home/sergej/.cargo/registry/src/index.crates.io-6f17d22bba15001f/sp-io-38.0.0/src/lib.rs:185
-
-This is a bug. Please report it at:
-
-	https://github.com/paritytech/polkadot-sdk/issues/new
-*/

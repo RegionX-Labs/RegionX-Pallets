@@ -7787,6 +7787,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "log",
+ "on-demand-primitives",
  "on-demand-service",
  "pallet-transaction-payment-rpc",
  "parachain-example-runtime",

@@ -32,7 +32,7 @@ use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInter
 use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
-use parachain_example_runtime::OnDemand;
+use parachain_example_runtime::{OnDemand, ThresholdParameter};
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
 use sc_client_api::{Backend, UsageProvider};
@@ -45,6 +45,7 @@ use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::PhantomData;
+use on_demand_primitives::OnDemandRuntimeApi;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -102,7 +103,7 @@ impl OrderCriteria for OrderPlacementCriteria {
 			total_fees = total_fees.saturating_add(fee_details.final_fee());
 		}
 
-		let fee_threshold = parachain.runtime_api().threshold_parameter();
+		let fee_threshold = parachain.runtime_api().threshold_parameter(block_hash).unwrap(); // TODO
 		total_fees >= fee_threshold
 	}
 }
@@ -434,7 +435,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, _, OnDemandConfig>(
+		start_on_demand::<_, _, _, _, _, OnDemandConfig, ThresholdParameter>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),

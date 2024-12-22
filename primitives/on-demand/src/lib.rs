@@ -2,8 +2,8 @@
 
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use cumulus_primitives_core::ParaId;
-use sp_runtime::traits::{MaybeDisplay, MaybeSerializeDeserialize, Member};
 use frame_support::Parameter;
+use sp_runtime::traits::{MaybeDisplay, MaybeSerializeDeserialize, Member};
 
 pub mod well_known_keys;
 
@@ -13,13 +13,13 @@ pub struct EnqueuedOrder {
 	pub para_id: ParaId,
 }
 
-pub trait ThresholdParameterT: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen
+pub trait ThresholdParameterT:
+	Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen
 {
 }
 
-impl<T> ThresholdParameterT for T
-where
-    T: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen,
+impl<T> ThresholdParameterT for T where
+	T: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen
 {
 }
 

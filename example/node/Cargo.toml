@@ -109,8 +109,9 @@ cumulus-relay-chain-interface.workspace = true
 cumulus-relay-chain-interface.default-features = true
 color-print = { workspace = true }
 
-# RegionX Modules
+# Local Modules
 on-demand-service = { workspace = true }
+on-demand-primitives = { workspace = true }
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true
@@ -121,6 +122,7 @@ default = ["std"]
 std = [
 	"log/std",
 	"parachain-example-runtime/std",
+	"on-demand-primitives/std",
 	"xcm/std",
 ]
 runtime-benchmarks = [
