@@ -14,11 +14,12 @@ scale-info = { workspace = true, default-features = false, features = ["derive"]
 
 # Substrate
 frame = { workspace = true, default-features = false, features = ["experimental", "runtime"] }
+frame-benchmarking = { workspace = true, default-features = false, optional = true }
+sp-runtime = { workspace = true, default-features = false }
+frame-support = { workspace = true, default-features = false }
 
 [dev-dependencies]
-frame-support = { workspace = true }
 sp-core = { workspace = true, default-features = false }
-sp-runtime = { workspace = true, default-features = false }
 pallet-balances = { workspace = true, default-features = false }
 serde = { workspace = true }
 smallvec = { workspace = true }
@@ -33,6 +34,7 @@ std = [
 	"scale-info/std",
 	"frame/std",
 	"frame-support/std",
+	"frame-benchmarking/std",
 	"sp-runtime/std",
 	"sp-core/std",
 	"pallet-balances/std",

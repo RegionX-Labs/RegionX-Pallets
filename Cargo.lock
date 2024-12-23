@@ -5586,6 +5586,7 @@ dependencies = [
 name = "pallet-on-demand"
 version = "0.1.0"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "pallet-balances",
  "parity-scale-codec",

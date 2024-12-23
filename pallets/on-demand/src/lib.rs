@@ -15,9 +15,18 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub trait BenchmarkHelper<ThresholdParameter> {
+	// Return a mock threshold parameter that is not the default value.
+	fn mock_threshold_parameter() -> ThresholdParameter;
+}
+
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
+	use sp_runtime::traits::AtLeast32BitUnsigned;
 
 	/// The module configuration trait.
 	#[pallet::config]
@@ -29,7 +38,7 @@ pub mod pallet {
 		type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// Block number type.
-		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen;
+		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen + AtLeast32BitUnsigned;
 
 		/// Given that we want to keep this pallet as generic as possible, we don't assume the type
 		/// of the threshold.
@@ -49,6 +58,9 @@ pub mod pallet {
 
 		/// Weight Info
 		type WeightInfo: WeightInfo;
+
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper: BenchmarkHelper<Self::ThresholdParameter>;
 	}
 
 	#[pallet::pallet]
