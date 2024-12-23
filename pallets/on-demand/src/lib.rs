@@ -9,6 +9,12 @@ use frame_system::WeightInfo;
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
@@ -92,7 +98,7 @@ pub mod pallet {
 		/// - `width`: The slot width in relay chain blocks.
 		#[pallet::call_index(0)]
 		#[pallet::weight(10_000)]
-		pub fn set_configuration(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
+		pub fn set_slot_width(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
 			T::AdminOrigin::ensure_origin_or_root(origin)?;
 
 			SlotWidth::<T>::set(width.clone());

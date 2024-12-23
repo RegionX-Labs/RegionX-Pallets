@@ -5586,11 +5586,15 @@ dependencies = [
 name = "pallet-on-demand"
 version = "0.1.0"
 dependencies = [
+ "frame-support",
+ "pallet-balances",
  "parity-scale-codec",
  "polkadot-sdk-frame",
  "scale-info",
  "serde",
  "smallvec",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
