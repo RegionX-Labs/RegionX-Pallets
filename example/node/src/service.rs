@@ -29,17 +29,22 @@ use cumulus_primitives_core::{
 use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInterface};
 
 // Substrate Imports
+use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
+use on_demand_primitives::OnDemandRuntimeApi;
+use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
+use parachain_example_runtime::ThresholdParameter;
+use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
-use sc_client_api::Backend;
+use sc_client_api::{Backend, UsageProvider};
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 use sc_network::NetworkBlock;
 use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
-use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
+use sp_api::ProvideRuntimeApi;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::PhantomData;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -74,13 +79,41 @@ impl OrderCriteria for OrderPlacementCriteria {
 	type P = ParachainClient;
 	type ExPool = sc_transaction_pool::FullPool<Block, ParachainClient>;
 
+	// Checks if the fee threshold has been reached.
 	fn should_place_order(
 		parachain: &Self::P,
 		transaction_pool: Arc<Self::ExPool>,
-		height: BlockNumber,
+		_height: BlockNumber,
 	) -> bool {
-		// TODO: add an implementation where we check the combined weight of the txs in the pool.
-		true
+		let pending_iterator = transaction_pool.ready();
+		let block_hash = parachain.usage_info().chain.best_hash;
+		let mut total_fees = Balance::from(0u32);
+
+		for pending_tx in pending_iterator {
+			let pending_tx_data = pending_tx.data.clone();
+			let utx_length = pending_tx_data.encode().len() as u32;
+
+			let fee_details =
+				parachain
+					.runtime_api()
+					.query_fee_details(block_hash, pending_tx_data, utx_length);
+
+			if let Ok(details) = fee_details {
+				total_fees = total_fees.saturating_add(details.final_fee());
+			}
+		}
+
+		let Some(fee_threshold) = parachain.runtime_api().threshold_parameter(block_hash).ok() else {
+			return false;
+		};
+
+		if fee_threshold > 0 {
+			log::info!(
+				"{}% of the threshold requirement met",
+				total_fees.saturating_div(fee_threshold).saturating_mul(100)
+			);
+		}
+		total_fees >= fee_threshold
 	}
 }
 
@@ -411,7 +444,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, _, OnDemandConfig>(
+		start_on_demand::<_, _, _, _, _, OnDemandConfig, ThresholdParameter>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),
