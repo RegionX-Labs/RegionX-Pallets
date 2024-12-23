@@ -31,8 +31,9 @@ use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInter
 // Substrate Imports
 use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
+use on_demand_primitives::OnDemandRuntimeApi;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
-use parachain_example_runtime::{OnDemand, ThresholdParameter};
+use parachain_example_runtime::ThresholdParameter;
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
 use sc_client_api::{Backend, UsageProvider};
@@ -44,8 +45,6 @@ use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerH
 use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::PhantomData;
-use on_demand_primitives::OnDemandRuntimeApi;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -84,7 +83,7 @@ impl OrderCriteria for OrderPlacementCriteria {
 	fn should_place_order(
 		parachain: &Self::P,
 		transaction_pool: Arc<Self::ExPool>,
-		height: BlockNumber,
+		_height: BlockNumber,
 	) -> bool {
 		let pending_iterator = transaction_pool.ready();
 		let block_hash = parachain.usage_info().chain.best_hash;
@@ -94,20 +93,23 @@ impl OrderCriteria for OrderPlacementCriteria {
 			let pending_tx_data = pending_tx.data.clone();
 			let utx_length = pending_tx_data.encode().len() as u32;
 
-			let fee_details = parachain
-				.runtime_api()
-				.query_fee_details(block_hash, pending_tx_data, utx_length)
-				.ok()
-				.unwrap(); // TODO
+			let fee_details =
+				parachain
+					.runtime_api()
+					.query_fee_details(block_hash, pending_tx_data, utx_length);
 
-			total_fees = total_fees.saturating_add(fee_details.final_fee());
+			if let Ok(details) = fee_details {
+				total_fees = total_fees.saturating_add(details.final_fee());
+			}
 		}
 
-		let fee_threshold = parachain.runtime_api().threshold_parameter(block_hash).unwrap(); // TODO
-		// TODO: log required and current fee
+		let Some(fee_threshold) = parachain.runtime_api().threshold_parameter(block_hash).ok() else {
+			return false;
+		};
+
 		if fee_threshold > 0 {
 			log::info!(
-				"{}% of the threshold requirement met", 
+				"{}% of the threshold requirement met",
 				total_fees.saturating_div(fee_threshold).saturating_mul(100)
 			);
 		}
