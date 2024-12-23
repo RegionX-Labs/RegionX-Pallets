@@ -62,6 +62,8 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Configuration of the coretime chain was set.
 		SlotWidthSet { width: T::BlockNumber },
+		/// Threshold parameter set.
+		ThresholdParameterSet { parameter: T::ThresholdParameter },
 	}
 
 	#[pallet::error]
@@ -95,6 +97,24 @@ pub mod pallet {
 
 			SlotWidth::<T>::set(width.clone());
 			Self::deposit_event(Event::SlotWidthSet { width });
+
+			Ok(())
+		}
+
+		/// Set the threshold parameter.
+		///
+		/// - `origin`: Must be Root or pass `AdminOrigin`.
+		/// - `parameter`: The threshold parameter.
+		#[pallet::call_index(1)]
+		#[pallet::weight(10_000)]
+		pub fn set_threshold_parameter(
+			origin: OriginFor<T>,
+			parameter: T::ThresholdParameter,
+		) -> DispatchResult {
+			T::AdminOrigin::ensure_origin_or_root(origin)?;
+
+			ThresholdParameter::<T>::set(parameter.clone());
+			Self::deposit_event(Event::ThresholdParameterSet { parameter });
 
 			Ok(())
 		}

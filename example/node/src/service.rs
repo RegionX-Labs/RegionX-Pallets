@@ -104,6 +104,13 @@ impl OrderCriteria for OrderPlacementCriteria {
 		}
 
 		let fee_threshold = parachain.runtime_api().threshold_parameter(block_hash).unwrap(); // TODO
+		// TODO: log required and current fee
+		if fee_threshold > 0 {
+			log::info!(
+				"{}% of the threshold requirement met", 
+				total_fees.saturating_div(fee_threshold).saturating_mul(100)
+			);
+		}
 		total_fees >= fee_threshold
 	}
 }

@@ -36,7 +36,7 @@ async function orderPlacementWorks() {
     // Assigning a core to the instantaneous coretime pool:
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
 
-    const paraHeight = (await paraApi.query.system.number()).toJSON() as number;
+    var paraHeight = (await paraApi.query.system.number()).toJSON() as number;
     log(`Para height before stopping: ${paraHeight}`);
 
     // Wait some time to prove that the parachain is not producing blocks.
@@ -55,35 +55,50 @@ async function orderPlacementWorks() {
 
     // Threshold not set, criteria should always be met.
     const iterations = 3;
-    let previousPlacer = '';
     let counter = 0;
-    await new Promise((resolve, _reject) => relayApi.query.system.events((events: any) => {
-      events.forEach((record: EventRecord) => {
-        const { event } = record;
 
-        if(event.method === 'OnDemandOrderPlaced') {
-          console.log(`${event.method} : ${event.data}`);
-          const orderPlacer = event.data[2].toString();
+    await new Promise(async (resolve, reject) => {
+      const unsub: any = await relayApi.query.system.events((events: any) => {
+        events.forEach((record: EventRecord) => {
+          const { event } = record;
 
-          // Ensure orders are not always placed by the same collator:
-          assert(orderPlacer !== previousPlacer);
-          assert(COLLATORS.includes(orderPlacer));
+          if(event.method === 'OnDemandOrderPlaced') {
+            console.log(`${event.method} : ${event.data}`);
+            const orderPlacer = event.data[2].toString();
 
-          previousPlacer = orderPlacer;
-          counter++;
+            assert(COLLATORS.includes(orderPlacer));
+
+            counter++;
+          }
+        });
+
+        if(counter >= iterations) {
+          unsub();
+          resolve('');
         }
       });
+    })
 
-      if(counter >= iterations) resolve('');
-    }));
+    await force(paraApi, paraApi.tx.onDemand.setThresholdParameter(100_000_000));
 
-    // TODO: Once threshold is set ensure it is still not producing blocks given the criteria.
+    // Once threshold is set ensure it is not producing blocks given the criteria is not met.
+    var paraHeight = (await paraApi.query.system.number()).toJSON() as number;
 
-    // TODO: meet the criteria and expect an on-demand order.
+    // Wait some time to prove that the parachain is not producing blocks.
+    await sleep(24 * 1000);
 
-    // TODO: Once the criteria is updated to actually track something(e.g. number of pending transactions)
-    // then ensure it is only placing orders when required.
+    var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
+    assert(paraHeight === newParaHeight, "Para should stop with block production");
 
+    // Making a transfer tx will gather enough fees to meet the criteria.
+    const alice = keyring.addFromUri("//Alice");
+    await submitExtrinsic(alice, paraApi.tx.balances.transferKeepAlive(CHARLIE, 1_000_000_000), {});
+
+    // Give some time for a block to be created.
+    await sleep(12 * 1000);
+
+    var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
+    assert(newParaHeight > paraHeight, "Para should produce a block");
 }
 
 orderPlacementWorks().then(() => console.log("\n✅ Test complete ✅"));
