@@ -75,9 +75,9 @@ impl pallet_balances::Config for Test {
 
 pub struct BenchHelper;
 impl crate::BenchmarkHelper<Balance> for BenchHelper {
-    fn mock_threshold_parameter() -> Balance {
-        1_000u32.into()
-    }
+	fn mock_threshold_parameter() -> Balance {
+		1_000u32.into()
+	}
 }
 
 impl crate::Config for Test {
@@ -85,8 +85,8 @@ impl crate::Config for Test {
 	type AdminOrigin = EnsureRoot<AccountId>;
 	type BlockNumber = BlockNumber;
 	type ThresholdParameter = Balance; // Represents fee threshold.
-    #[cfg(feature = "runtime-benchmarks")]
-    type BenchmarkHelper = BenchHelper;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = BenchHelper;
 	type WeightInfo = ();
 }
 

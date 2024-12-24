@@ -1,8 +1,11 @@
 //! Benchmarks for pallet-on-demand
 
-#![cfg(feature = "runtime-benchmarks")]
-
 use super::*;
+
+pub trait BenchmarkHelper<ThresholdParameter> {
+	// Return a mock threshold parameter that is not the default value.
+	fn mock_threshold_parameter() -> ThresholdParameter;
+}
 
 use frame_benchmarking::v2::*;
 fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
@@ -26,12 +29,12 @@ mod benchmarks {
 		Ok(())
 	}
 
-    #[benchmark]
+	#[benchmark]
 	fn set_threshold_parameter() -> Result<(), BenchmarkError> {
 		let origin =
 			T::AdminOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 
-        let param = T::BenchmarkHelper::mock_threshold_parameter();
+		let param = T::BenchmarkHelper::mock_threshold_parameter();
 
 		#[extrinsic_call]
 		_(origin as T::RuntimeOrigin, param.clone());
