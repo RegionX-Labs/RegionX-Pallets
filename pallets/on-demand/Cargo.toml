@@ -23,11 +23,12 @@ sp-core = { workspace = true, default-features = false }
 pallet-balances = { workspace = true, default-features = false }
 serde = { workspace = true }
 smallvec = { workspace = true }
-
+		
 [features]
 default = ["std"]
 runtime-benchmarks = [
-	"frame/runtime-benchmarks",
+	"frame-benchmarking/runtime-benchmarks",
+	"frame/runtime-benchmarks"
 ]
 std = [
 	"codec/std",

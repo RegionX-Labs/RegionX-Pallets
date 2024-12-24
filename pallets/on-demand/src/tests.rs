@@ -1,4 +1,3 @@
-// use frame_support::{assert_noop, assert_ok};
 use crate::{
 	mock::{new_test_ext, OnDemand, RuntimeOrigin, System, Test},
 	Event, SlotWidth, ThresholdParameter,

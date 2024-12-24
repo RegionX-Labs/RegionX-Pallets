@@ -5,7 +5,6 @@
 extern crate alloc;
 
 use frame::prelude::*;
-use frame_system::WeightInfo;
 
 pub use pallet::*;
 
@@ -17,6 +16,8 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+mod weights;
 
 pub trait BenchmarkHelper<ThresholdParameter> {
 	// Return a mock threshold parameter that is not the default value.
@@ -57,7 +58,7 @@ pub mod pallet {
 			+ MaxEncodedLen;
 
 		/// Weight Info
-		type WeightInfo: WeightInfo;
+		type WeightInfo: crate::weights::WeightInfo;
 
 		#[cfg(feature = "runtime-benchmarks")]
 		type BenchmarkHelper: BenchmarkHelper<Self::ThresholdParameter>;
