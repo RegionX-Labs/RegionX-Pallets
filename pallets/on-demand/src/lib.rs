@@ -17,6 +17,9 @@ mod tests;
 
 pub mod weights;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub use benchmarking::BenchmarkHelper;
+
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
