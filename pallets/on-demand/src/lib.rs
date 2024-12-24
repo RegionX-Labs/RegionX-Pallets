@@ -5,13 +5,26 @@
 extern crate alloc;
 
 use frame::prelude::*;
-use frame_system::WeightInfo;
 
 pub use pallet::*;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
+pub mod weights;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub use benchmarking::BenchmarkHelper;
 
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
+	use crate::weights::WeightInfo;
+	use sp_runtime::traits::AtLeast32BitUnsigned;
 
 	/// The module configuration trait.
 	#[pallet::config]
@@ -23,7 +36,12 @@ pub mod pallet {
 		type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// Block number type.
-		type BlockNumber: Parameter + Member + Default + MaybeSerializeDeserialize + MaxEncodedLen;
+		type BlockNumber: Parameter
+			+ Member
+			+ Default
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen
+			+ AtLeast32BitUnsigned;
 
 		/// Given that we want to keep this pallet as generic as possible, we don't assume the type
 		/// of the threshold.
@@ -43,6 +61,9 @@ pub mod pallet {
 
 		/// Weight Info
 		type WeightInfo: WeightInfo;
+
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper: crate::BenchmarkHelper<Self::ThresholdParameter>;
 	}
 
 	#[pallet::pallet]
@@ -91,8 +112,8 @@ pub mod pallet {
 		/// - `origin`: Must be Root or pass `AdminOrigin`.
 		/// - `width`: The slot width in relay chain blocks.
 		#[pallet::call_index(0)]
-		#[pallet::weight(10_000)]
-		pub fn set_configuration(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
+		#[pallet::weight(T::WeightInfo::set_slot_width())]
+		pub fn set_slot_width(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
 			T::AdminOrigin::ensure_origin_or_root(origin)?;
 
 			SlotWidth::<T>::set(width.clone());
@@ -106,7 +127,7 @@ pub mod pallet {
 		/// - `origin`: Must be Root or pass `AdminOrigin`.
 		/// - `parameter`: The threshold parameter.
 		#[pallet::call_index(1)]
-		#[pallet::weight(10_000)]
+		#[pallet::weight(T::WeightInfo::set_threshold_parameter())]
 		pub fn set_threshold_parameter(
 			origin: OriginFor<T>,
 			parameter: T::ThresholdParameter,

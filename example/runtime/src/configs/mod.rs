@@ -304,10 +304,21 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = ();
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+pub struct BenchHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl pallet_on_demand::BenchmarkHelper<Balance> for BenchHelper {
+    fn mock_threshold_parameter() -> Balance {
+        1_000u32.into()
+    }
+}
+
 impl pallet_on_demand::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AdminOrigin = EnsureRoot<AccountId>;
 	type BlockNumber = BlockNumber;
 	type ThresholdParameter = ThresholdParameter; // Represents fee threshold.
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = BenchHelper;
 	type WeightInfo = ();
 }

@@ -166,7 +166,6 @@ pub async fn is_parathread(
 pub async fn on_demand_cores_available(
 	relay_chain: &(impl RelayChainInterface + Clone),
 	hash: H256,
-	para_id: ParaId,
 ) -> Option<bool> {
 	let active_config_storage = relay_chain.get_storage_by_key(hash, ACTIVE_CONFIG).await.ok()?;
 

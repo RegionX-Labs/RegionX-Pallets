@@ -247,7 +247,7 @@ where
 		return Ok(())
 	}
 
-	let available = on_demand_cores_available(&relay_chain, p_hash, para_id)
+	let available = on_demand_cores_available(&relay_chain, p_hash)
 		.await
 		.ok_or("Failed to check if there are on-demand cores available")?;
 
