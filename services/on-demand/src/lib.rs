@@ -178,17 +178,11 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 		select! {
 			h = new_best_heads.next() => {
 				match h {
-					Some((height, validation_data, r_hash, p_hash)) => {
+					Some((height, validation_data, r_hash)) => {
 						log::info!(
 							target: LOG_TARGET,
 							"New best relay head: {}",
-							r_hash
-						);
-
-						log::info!(
-							target: LOG_TARGET,
-							"Para head: {}",
-							p_hash
+							r_hash,
 						);
 
 						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
@@ -198,7 +192,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 							keystore.clone(),
 							transaction_pool.clone(),
 							relay_chain.clone(),
-							p_hash,
+							r_hash,
 							para_id,
 							relay_url.clone(),
 						).await;
@@ -220,7 +214,7 @@ async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdPa
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
 	relay_chain: impl RelayChainInterface + Clone,
-	p_hash: H256,
+	r_hash: H256,
 	para_id: ParaId,
 	relay_url: String,
 ) -> Result<(), Box<dyn Error>>
@@ -242,7 +236,7 @@ where
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
-	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	let is_parathread = is_parathread(&relay_chain, r_hash, para_id).await?;
 
 	if !is_parathread {
 		log::info!(
@@ -253,7 +247,7 @@ where
 		return Ok(())
 	}
 
-	let available = on_demand_cores_available(&relay_chain, p_hash)
+	let available = on_demand_cores_available(&relay_chain, r_hash)
 		.await
 		.ok_or("Failed to check if there are on-demand cores available")?;
 
@@ -290,7 +284,7 @@ where
 		return Ok(())
 	}
 
-	let on_demand_queue_storage = relay_chain.get_storage_by_key(p_hash, ON_DEMAND_QUEUE).await?;
+	let on_demand_queue_storage = relay_chain.get_storage_by_key(r_hash, ON_DEMAND_QUEUE).await?;
 	let on_demand_queue = on_demand_queue_storage
 		.map(|raw| <Vec<EnqueuedOrder>>::decode(&mut &raw[..]))
 		.transpose()?;
@@ -316,7 +310,7 @@ where
 		return Ok(())
 	}
 
-	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash)
+	let spot_price = get_spot_price::<Balance>(relay_chain, r_hash)
 		.await
 		.ok_or("Failed to get spot price")?;
 
@@ -347,7 +341,7 @@ where
 async fn new_best_heads(
 	relay_chain: impl RelayChainInterface + Clone,
 	para_id: ParaId,
-) -> RelayChainResult<impl Stream<Item = (u32, PersistedValidationData, H256, H256)>> {
+) -> RelayChainResult<impl Stream<Item = (u32, PersistedValidationData, H256)>> {
 	let new_best_notification_stream =
 		relay_chain.new_best_notification_stream().await?.filter_map(move |n| {
 			let relay_chain = relay_chain.clone();
@@ -358,8 +352,7 @@ async fn new_best_heads(
 					.map(|s| s.map(|s| s))
 					.ok()
 					.flatten()?;
-				let p_head = validation_data.parent_head.clone();
-				Some((n.number, validation_data, n.hash(), p_head.hash()))
+				Some((n.number, validation_data, n.hash()))
 			}
 		});
 

@@ -33,6 +33,8 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
+    // TODO: set slot width
+
     // Assigning a core to the instantaneous coretime pool:
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
 
