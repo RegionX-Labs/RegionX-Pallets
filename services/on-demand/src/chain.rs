@@ -1,12 +1,15 @@
 //! This file contains all the chain related interaction functions.
 
-use crate::chain::polkadot::{
-	on_demand_assignment_provider::storage::types::queue_status::QueueStatus,
-	runtime_types::{
-		pallet_broker::coretime_interface::CoreAssignment,
-		polkadot_parachain_primitives::primitives::Id,
-		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
+use crate::{
+	chain::polkadot::{
+		on_demand_assignment_provider::storage::types::queue_status::QueueStatus,
+		runtime_types::{
+			pallet_broker::coretime_interface::CoreAssignment,
+			polkadot_parachain_primitives::primitives::Id,
+			polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
+		},
 	},
+	RelayBlockNumber,
 };
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};
@@ -23,7 +26,10 @@ use sp_runtime::{
 	MultiSignature as SpMultiSignature, SaturatedConversion,
 };
 use std::{error::Error, fmt::Debug};
-use subxt::{tx::Signer, utils::MultiSignature, Config, OnlineClient, PolkadotConfig};
+use subxt::{
+	config::DefaultExtrinsicParamsBuilder, tx::Signer, utils::MultiSignature, Config, OnlineClient,
+	PolkadotConfig,
+};
 
 #[subxt::subxt(runtime_metadata_path = "../../artifacts/metadata.scale")]
 pub mod polkadot {}
@@ -96,6 +102,9 @@ pub async fn submit_order(
 	url: &str,
 	para_id: ParaId,
 	max_amount: u128,
+	relay_height: RelayBlockNumber,
+	relay_head_hash: subxt::utils::H256,
+	slot_width: RelayBlockNumber,
 	keystore: KeystorePtr,
 ) -> Result<(), Box<dyn Error>> {
 	let client = OnlineClient::<PolkadotConfig>::from_url(url).await?;
@@ -106,7 +115,13 @@ pub async fn submit_order(
 
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
-	let submit_result = client.tx().sign_and_submit_default(&place_order, &signer_keystore).await;
+	// The lowest transaction mortality possible is 4.
+	let tx_params = DefaultExtrinsicParamsBuilder::new()
+		.mortal_unchecked(relay_height.into(), relay_head_hash, slot_width.max(4).into())
+		.build();
+
+	let submit_result =
+		client.tx().sign_and_submit(&place_order, &signer_keystore, tx_params).await;
 	log::info!("submit_result: {:?}", submit_result);
 	submit_result?;
 

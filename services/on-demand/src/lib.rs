@@ -209,7 +209,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 /// Order placement logic
 async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdParameter>(
 	validation_data: PersistedValidationData,
-	height: RelayBlockNumber,
+	relay_height: RelayBlockNumber,
 	parachain: &P,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
@@ -268,7 +268,7 @@ where
 	let slot_width = parachain.runtime_api().slot_width(head_hash)?;
 
 	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
-	let indx = (height >> slot_width) % authorities.len() as u32;
+	let indx = (relay_height >> slot_width) % authorities.len() as u32;
 	let expected_author =
 		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
 
@@ -300,8 +300,11 @@ where
 	}
 
 	// Before placing an order ensure that the criteria for placing an order has been reached.
-	let order_criteria_reached =
-		Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
+	let order_criteria_reached = Config::OrderPlacementCriteria::should_place_order(
+		parachain,
+		transaction_pool,
+		relay_height,
+	);
 
 	if !order_criteria_reached {
 		return Ok(())
@@ -316,7 +319,17 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
+	let hash_bytes: &[u8] = head_hash.as_ref();
+	chain::submit_order(
+		&relay_url,
+		para_id,
+		spot_price.into(),
+		relay_height,
+		subxt::utils::H256(hash_bytes.try_into().expect("Relay header hash shouldn't be more than 32 bytes")),
+		slot_width,
+		keystore,
+	)
+	.await?;
 
 	Ok(())
 }

@@ -99,6 +99,8 @@ async function orderPlacementWorks() {
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(newParaHeight > paraHeight, "Para should produce a block");
+    
+    // TODO: add test to check if the author is same as the order creator.
 }
 
 orderPlacementWorks().then(() => console.log("\n✅ Test complete ✅"));
