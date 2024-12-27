@@ -178,21 +178,27 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 		select! {
 			h = new_best_heads.next() => {
 				match h {
-					Some((height, head, hash)) => {
+					Some((height, validation_data, r_hash, p_hash)) => {
 						log::info!(
 							target: LOG_TARGET,
-							"New best head: {}",
-							hash
+							"New best relay head: {}",
+							r_hash
+						);
+
+						log::info!(
+							target: LOG_TARGET,
+							"Para head: {}",
+							p_hash
 						);
 
 						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
-							head,
+							validation_data,
 							height,
 							&*parachain,
 							keystore.clone(),
 							transaction_pool.clone(),
 							relay_chain.clone(),
-							hash,
+							p_hash,
 							para_id,
 							relay_url.clone(),
 						).await;
@@ -325,7 +331,11 @@ where
 		para_id,
 		spot_price.into(),
 		relay_height,
-		subxt::utils::H256(hash_bytes.try_into().expect("Relay header hash shouldn't be more than 32 bytes")),
+		subxt::utils::H256(
+			hash_bytes
+				.try_into()
+				.expect("Relay header hash shouldn't be more than 32 bytes"),
+		),
 		slot_width,
 		keystore,
 	)
@@ -337,18 +347,19 @@ where
 async fn new_best_heads(
 	relay_chain: impl RelayChainInterface + Clone,
 	para_id: ParaId,
-) -> RelayChainResult<impl Stream<Item = (u32, PersistedValidationData, H256)>> {
+) -> RelayChainResult<impl Stream<Item = (u32, PersistedValidationData, H256, H256)>> {
 	let new_best_notification_stream =
 		relay_chain.new_best_notification_stream().await?.filter_map(move |n| {
 			let relay_chain = relay_chain.clone();
 			async move {
-				let relay_head: PersistedValidationData = relay_chain
+				let validation_data: PersistedValidationData = relay_chain
 					.persisted_validation_data(n.hash(), para_id, OccupiedCoreAssumption::TimedOut)
 					.await
 					.map(|s| s.map(|s| s))
 					.ok()
 					.flatten()?;
-				Some((n.number, relay_head, n.hash()))
+				let p_head = validation_data.parent_head.clone();
+				Some((n.number, validation_data, n.hash(), p_head.hash()))
 			}
 		});
 
