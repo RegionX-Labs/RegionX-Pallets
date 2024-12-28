@@ -319,17 +319,10 @@ where
 		"Placing an order",
 	);
 
-	let hash_bytes: &[u8] = head_hash.as_ref();
 	chain::submit_order(
 		&relay_url,
 		para_id,
 		spot_price.into(),
-		relay_height,
-		subxt::utils::H256(
-			hash_bytes
-				.try_into()
-				.expect("Relay header hash shouldn't be more than 32 bytes"),
-		),
 		slot_width,
 		keystore,
 	)

@@ -102,12 +102,11 @@ pub async fn submit_order(
 	url: &str,
 	para_id: ParaId,
 	max_amount: u128,
-	relay_height: RelayBlockNumber,
-	relay_head_hash: subxt::utils::H256,
 	slot_width: RelayBlockNumber,
 	keystore: KeystorePtr,
 ) -> Result<(), Box<dyn Error>> {
 	let client = OnlineClient::<PolkadotConfig>::from_url(url).await?;
+	let current_header = client.blocks().at_latest().await?.header().clone();
 
 	let place_order = polkadot::tx()
 		.on_demand_assignment_provider()
@@ -117,7 +116,7 @@ pub async fn submit_order(
 
 	// The lowest transaction mortality possible is 4.
 	let tx_params = DefaultExtrinsicParamsBuilder::new()
-		.mortal_unchecked(relay_height.into(), relay_head_hash, slot_width.max(4).into())
+		.mortal(&current_header, slot_width.max(4).into())
 		.build();
 
 	let submit_result =
