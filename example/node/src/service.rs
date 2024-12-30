@@ -73,6 +73,7 @@ impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
 	type OrderPlacementCriteria = OrderPlacementCriteria;
 }
 
+// https://github.com/paritytech/cumulus/issues/2154
 pub struct OrderPlacementCriteria;
 impl OrderCriteria for OrderPlacementCriteria {
 	type Block = Block;

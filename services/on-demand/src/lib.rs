@@ -178,21 +178,21 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 		select! {
 			h = new_best_heads.next() => {
 				match h {
-					Some((height, head, hash)) => {
+					Some((height, validation_data, r_hash)) => {
 						log::info!(
 							target: LOG_TARGET,
-							"New best head: {}",
-							hash
+							"New best relay head: {}",
+							r_hash,
 						);
 
 						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
-							head,
+							validation_data,
 							height,
 							&*parachain,
 							keystore.clone(),
 							transaction_pool.clone(),
 							relay_chain.clone(),
-							hash,
+							r_hash,
 							para_id,
 							relay_url.clone(),
 						).await;
@@ -209,12 +209,12 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 /// Order placement logic
 async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdParameter>(
 	validation_data: PersistedValidationData,
-	height: RelayBlockNumber,
+	relay_height: RelayBlockNumber,
 	parachain: &P,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
 	relay_chain: impl RelayChainInterface + Clone,
-	p_hash: H256,
+	r_hash: H256,
 	para_id: ParaId,
 	relay_url: String,
 ) -> Result<(), Box<dyn Error>>
@@ -236,7 +236,7 @@ where
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
-	let is_parathread = is_parathread(&relay_chain, p_hash, para_id).await?;
+	let is_parathread = is_parathread(&relay_chain, r_hash, para_id).await?;
 
 	if !is_parathread {
 		log::info!(
@@ -247,7 +247,7 @@ where
 		return Ok(())
 	}
 
-	let available = on_demand_cores_available(&relay_chain, p_hash)
+	let available = on_demand_cores_available(&relay_chain, r_hash)
 		.await
 		.ok_or("Failed to check if there are on-demand cores available")?;
 
@@ -268,7 +268,7 @@ where
 	let slot_width = parachain.runtime_api().slot_width(head_hash)?;
 
 	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
-	let indx = (height >> slot_width) % authorities.len() as u32;
+	let indx = (relay_height >> slot_width) % authorities.len() as u32;
 	let expected_author =
 		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
 
@@ -284,7 +284,7 @@ where
 		return Ok(())
 	}
 
-	let on_demand_queue_storage = relay_chain.get_storage_by_key(p_hash, ON_DEMAND_QUEUE).await?;
+	let on_demand_queue_storage = relay_chain.get_storage_by_key(r_hash, ON_DEMAND_QUEUE).await?;
 	let on_demand_queue = on_demand_queue_storage
 		.map(|raw| <Vec<EnqueuedOrder>>::decode(&mut &raw[..]))
 		.transpose()?;
@@ -300,14 +300,17 @@ where
 	}
 
 	// Before placing an order ensure that the criteria for placing an order has been reached.
-	let order_criteria_reached =
-		Config::OrderPlacementCriteria::should_place_order(parachain, transaction_pool, height);
+	let order_criteria_reached = Config::OrderPlacementCriteria::should_place_order(
+		parachain,
+		transaction_pool,
+		relay_height,
+	);
 
 	if !order_criteria_reached {
 		return Ok(())
 	}
 
-	let spot_price = get_spot_price::<Balance>(relay_chain, p_hash)
+	let spot_price = get_spot_price::<Balance>(relay_chain, r_hash)
 		.await
 		.ok_or("Failed to get spot price")?;
 
@@ -316,7 +319,14 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
+	chain::submit_order(
+		&relay_url,
+		para_id,
+		spot_price.into(),
+		slot_width,
+		keystore,
+	)
+	.await?;
 
 	Ok(())
 }
@@ -329,13 +339,13 @@ async fn new_best_heads(
 		relay_chain.new_best_notification_stream().await?.filter_map(move |n| {
 			let relay_chain = relay_chain.clone();
 			async move {
-				let relay_head: PersistedValidationData = relay_chain
+				let validation_data: PersistedValidationData = relay_chain
 					.persisted_validation_data(n.hash(), para_id, OccupiedCoreAssumption::TimedOut)
 					.await
 					.map(|s| s.map(|s| s))
 					.ok()
 					.flatten()?;
-				Some((n.number, relay_head, n.hash()))
+				Some((n.number, validation_data, n.hash()))
 			}
 		});
 
