@@ -74,15 +74,16 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task = run_on_demand_task::<
-		P,
-		R,
-		Block,
-		ExPool,
-		Balance,
-		Config,
-		ThresholdParameter,
-	>(para_id, parachain, relay_chain, keystore, transaction_pool, url);
+	let on_demand_task =
+		run_on_demand_task::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+			para_id,
+			parachain,
+			relay_chain,
+			keystore,
+			transaction_pool,
+			url,
+			rc_balance_baseline,
+		);
 
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"on-demand order placement task",
@@ -100,6 +101,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
 	relay_url: String,
+	rc_balance_baseline: Balance,
 ) where
 	Block: BlockT,
 	Balance: Codec
@@ -132,6 +134,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 			keystore,
 			transaction_pool,
 			relay_url,
+			rc_balance_baseline,
 		);
 
 	// let event_notification = event_notification(para_id, url, order_record);
@@ -148,6 +151,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	keystore: KeystorePtr,
 	transaction_pool: Arc<ExPool>,
 	relay_url: String,
+	rc_balance_baseline: Balance,
 ) where
 	Block: BlockT,
 	Balance: Codec
@@ -201,6 +205,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 							r_hash,
 							para_id,
 							relay_url.clone(),
+							rc_balance_baseline,
 						).await;
 					},
 					None => {
@@ -223,6 +228,7 @@ async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdPa
 	r_hash: H256,
 	para_id: ParaId,
 	relay_url: String,
+	rc_balance_baseline: Balance,
 ) -> Result<(), Box<dyn Error>>
 where
 	Block: BlockT,
@@ -272,6 +278,14 @@ where
 		if let Some(rc_account_storage) = rc_account_storage {
 			let rc_account: AccountInfo<Nonce, AccountData<Balance>> =
 				AccountInfo::decode(&mut &rc_account_storage[..])?;
+
+			if rc_account.data.free <= rc_balance_baseline {
+				log::warn!(
+					target: LOG_TARGET,
+					"Low relay chain balance: {}",
+					rc_account.data.free
+				)
+			}
 		}
 	}
 
