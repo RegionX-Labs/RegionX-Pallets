@@ -308,9 +308,9 @@ impl pallet_collator_selection::Config for Runtime {
 pub struct BenchHelper;
 #[cfg(feature = "runtime-benchmarks")]
 impl pallet_on_demand::BenchmarkHelper<Balance> for BenchHelper {
-    fn mock_threshold_parameter() -> Balance {
-        1_000u32.into()
-    }
+	fn mock_threshold_parameter() -> Balance {
+		1_000u32.into()
+	}
 }
 
 impl pallet_on_demand::Config for Runtime {

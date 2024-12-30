@@ -273,7 +273,7 @@ where
 	}
 
 	for acc in keystore.keys(sp_application_crypto::key_types::AURA)?.iter() {
-		// Check if any of the accounts is below the baseline
+		// Check if any of the accounts is below the baseline balance.
 		let rc_account_storage = relay_chain.get_storage_by_key(r_hash, &account(acc)).await?;
 		if let Some(rc_account_storage) = rc_account_storage {
 			let rc_account: AccountInfo<Nonce, AccountData<Balance>> =

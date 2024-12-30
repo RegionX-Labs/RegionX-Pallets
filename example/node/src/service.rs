@@ -104,7 +104,8 @@ impl OrderCriteria for OrderPlacementCriteria {
 			}
 		}
 
-		let Some(fee_threshold) = parachain.runtime_api().threshold_parameter(block_hash).ok() else {
+		let Some(fee_threshold) = parachain.runtime_api().threshold_parameter(block_hash).ok()
+		else {
 			return false;
 		};
 
@@ -290,6 +291,7 @@ pub async fn start_parachain_node(
 	collator_options: CollatorOptions,
 	para_id: ParaId,
 	hwbench: Option<sc_sysinfo::HwBench>,
+	on_demand_baseline_balance: Balance,
 ) -> sc_service::error::Result<(TaskManager, Arc<ParachainClient>)> {
 	let parachain_config = prepare_node_config(parachain_config);
 
@@ -453,6 +455,7 @@ pub async fn start_parachain_node(
 			&task_manager,
 			params.keystore_container.keystore(),
 			relay_rpc,
+			on_demand_baseline_balance,
 		)?;
 		start_consensus(
 			client.clone(),
