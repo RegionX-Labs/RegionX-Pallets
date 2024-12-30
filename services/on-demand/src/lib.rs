@@ -3,17 +3,22 @@
 //! NOTE: Inspiration was taken from the Magnet(https://github.com/Magport/Magnet) on-demand integration.
 
 use crate::{
-	chain::{get_spot_price, is_parathread, on_demand_cores_available},
+	chain::{
+		get_spot_price, is_parathread, on_demand_cores_available,
+		polkadot::runtime_types::{frame_system::AccountInfo, pallet_balances::types::AccountData},
+	},
 	config::{OnDemandConfig, OrderCriteria},
 };
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{
-	relay_chain::BlockNumber as RelayBlockNumber, ParaId, PersistedValidationData,
+	relay_chain::{BlockNumber as RelayBlockNumber, Nonce},
+	ParaId, PersistedValidationData,
 };
 use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
 use on_demand_primitives::{
-	well_known_keys::ON_DEMAND_QUEUE, EnqueuedOrder, OnDemandRuntimeApi, ThresholdParameterT,
+	well_known_keys::{account, ON_DEMAND_QUEUE},
+	EnqueuedOrder, OnDemandRuntimeApi, ThresholdParameterT,
 };
 use polkadot_primitives::OccupiedCoreAssumption;
 use sc_client_api::UsageProvider;
@@ -40,6 +45,7 @@ pub fn start_on_demand<P, R, ExPool, Block, Balance, Config, ThresholdParameter>
 	task_manager: &TaskManager,
 	keystore: KeystorePtr,
 	relay_rpc: Option<SocketAddr>,
+	rc_balance_baseline: Balance,
 ) -> sc_service::error::Result<()>
 where
 	Block: BlockT,
@@ -260,6 +266,15 @@ where
 		return Ok(())
 	}
 
+	for acc in keystore.keys(sp_application_crypto::key_types::AURA)?.iter() {
+		// Check if any of the accounts is below the baseline
+		let rc_account_storage = relay_chain.get_storage_by_key(r_hash, &account(acc)).await?;
+		if let Some(rc_account_storage) = rc_account_storage {
+			let rc_account: AccountInfo<Nonce, AccountData<Balance>> =
+				AccountInfo::decode(&mut &rc_account_storage[..])?;
+		}
+	}
+
 	let head_encoded = validation_data.clone().parent_head.0;
 	let head = <<Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
@@ -319,14 +334,7 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(
-		&relay_url,
-		para_id,
-		spot_price.into(),
-		slot_width,
-		keystore,
-	)
-	.await?;
+	chain::submit_order(&relay_url, para_id, spot_price.into(), slot_width, keystore).await?;
 
 	Ok(())
 }

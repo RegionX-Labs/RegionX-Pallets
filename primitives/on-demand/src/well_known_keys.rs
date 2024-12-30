@@ -1,6 +1,6 @@
 use codec::Encode;
 use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};
-use sp_io::hashing::{twox_256, twox_64};
+use sp_io::hashing::{blake2_128, twox_256, twox_64};
 use sp_runtime::Vec;
 
 /// OnDemandAssignmentProvider OnDemandQueue
@@ -20,6 +20,20 @@ pub const PARAS_PARA_LIFECYCLES: &[u8] =
 
 pub const CORE_DESCRIPTORS: &[u8] =
 	&hex_literal::hex!["638595eebaa445ce03a13547bece90e704e6ac775a3245623103ffec2cb2c92f"];
+
+pub const SYSTEM_ACCOUNT: &[u8] =
+	&hex_literal::hex!["26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da9"];
+
+pub fn account<AccountId: Encode>(acc: AccountId) -> Vec<u8> {
+	acc.using_encoded(|acc: &[u8]| {
+		SYSTEM_ACCOUNT
+			.iter()
+			.chain(blake2_128(acc).iter())
+			.chain(acc.iter())
+			.cloned()
+			.collect()
+	})
+}
 
 /// Returns the storage key for a specific core descriptor.
 pub fn core_descriptor(core_index: CoreIndex) -> Vec<u8> {
