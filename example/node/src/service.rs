@@ -73,12 +73,7 @@ impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
 	type OrderPlacementCriteria = OrderPlacementCriteria;
 }
 
-// TODO: does the order creator end up being the block author? 
-// ANSWER: It doesn't seem like it!
-
-// Every slot duration(12 seconds) current slot is updated and a new author is selected.
-// NOTE: there is a chance that the same author will be selected twice in a row.
-
+// https://github.com/paritytech/cumulus/issues/2154
 pub struct OrderPlacementCriteria;
 impl OrderCriteria for OrderPlacementCriteria {
 	type Block = Block;
