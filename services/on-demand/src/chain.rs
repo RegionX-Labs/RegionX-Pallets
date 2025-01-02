@@ -27,8 +27,8 @@ use sp_runtime::{
 };
 use std::{error::Error, fmt::Debug};
 use subxt::{
-	config::polkadot::PolkadotExtrinsicParamsBuilder as Params, tx::Signer, utils::MultiSignature, Config, OnlineClient,
-	PolkadotConfig,
+	config::polkadot::PolkadotExtrinsicParamsBuilder as Params, tx::Signer, utils::MultiSignature,
+	Config, OnlineClient, PolkadotConfig,
 };
 
 #[subxt::subxt(runtime_metadata_path = "../../artifacts/metadata.scale")]
@@ -115,9 +115,7 @@ pub async fn submit_order(
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
 	// The lowest transaction mortality possible is 4.
-	let tx_params = Params::new()
-		.mortal(latest_block.header(), 4)
-		.build();
+	let tx_params = Params::new().mortal(latest_block.header(), slot_width.max(4).into()).build();
 	// ^^^^ TODO: don't anchor to the latest_block, but to the slot start such that it is
 	// no longer valid in the next slot.
 
