@@ -115,12 +115,13 @@ pub async fn submit_order(
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
 	// The lowest transaction mortality possible is 4.
-	let tx_params = Params::new().mortal(latest_block.header(), slot_width.max(4).into()).build();
-	// ^^^^ TODO: don't anchor to the latest_block, but to the slot start such that it is
-	// no longer valid in the next slot.
+	// let tx_params = Params::new().mortal(latest_block.header(),
+	// slot_width.max(4).into()).build(); ^^^^ TODO: don't anchor to the latest_block, but to the
+	// slot start such that it is no longer valid in the next slot.
 
-	let submit_result =
-		client.tx().sign_and_submit(&place_order, &signer_keystore, tx_params).await;
+	// let submit_result =
+	// 	client.tx().sign_and_submit(&place_order, &signer_keystore, tx_params).await;
+	let submit_result = client.tx().sign_and_submit_default(&place_order, &signer_keystore).await;
 	log::info!("submit_result: {:?}", submit_result);
 	submit_result?;
 

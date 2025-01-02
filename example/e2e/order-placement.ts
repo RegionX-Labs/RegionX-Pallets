@@ -17,6 +17,8 @@ const COLLATORS = [CHARLIE, EVE, FERDIE];
 
 const keyring = new Keyring({ type: "sr25519" });
 
+const MILLIS_PER_BLOCK = 30000; // 0.5 minutes.
+
 async function orderPlacementWorks() {
     const relayEndpoint = new WsProvider(RELAY_ENDPOINT);
     const relayApi = await ApiPromise.create({provider: relayEndpoint});
@@ -42,7 +44,7 @@ async function orderPlacementWorks() {
     log(`Para height before stopping: ${paraHeight}`);
 
     // Wait some time to prove that the parachain is not producing blocks.
-    await sleep(24 * 1000);
+    await sleep(2 * MILLIS_PER_BLOCK);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(paraHeight === newParaHeight, "Para should stop with block production");
@@ -87,7 +89,7 @@ async function orderPlacementWorks() {
     var paraHeight = (await paraApi.query.system.number()).toJSON() as number;
 
     // Wait some time to prove that the parachain is not producing blocks.
-    await sleep(24 * 1000);
+    await sleep(2 * MILLIS_PER_BLOCK);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(paraHeight === newParaHeight, "Para should stop with block production");
@@ -97,10 +99,12 @@ async function orderPlacementWorks() {
     await submitExtrinsic(alice, paraApi.tx.balances.transferKeepAlive(CHARLIE, 1_000_000_000), {});
 
     // Give some time for a block to be created.
-    await sleep(12 * 1000);
+    await sleep(MILLIS_PER_BLOCK * 1.2);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(newParaHeight > paraHeight, "Para should produce a block");
+
+    // TODO: update tests given that we updated the MILLIS_PER_BLOCK
     
     // TODO: add test to check if the author is same as the order creator.
 }
