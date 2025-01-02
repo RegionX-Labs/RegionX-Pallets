@@ -85,7 +85,7 @@ pub struct Cli {
 	///
 	/// A warning will be logged when the free relay chain balance of the collator drops below this
 	/// value.
-	#[arg(long, default_value = "1_000_000_000")]
+	#[arg(long, default_value = "1000000000")]
 	pub on_demand_baseline_balance: Balance,
 }
 
