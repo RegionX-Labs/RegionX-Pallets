@@ -21,15 +21,11 @@ pub trait OnDemandConfig {
 	type Block: BlockT;
 
 	/// Returns the block author for the current slot.
-    fn author<R, P>(
-        relay_chain: &R,
-        para: &P,
-        relay_head: Vec<u8>,
-    ) -> Option<Self::AuthorPub>
-    where
+	fn author<R, P>(relay_chain: &R, para: &P, relay_head: Vec<u8>) -> Option<Self::AuthorPub>
+	where
 		R: RelayChainInterface + Clone,
-        P: ProvideRuntimeApi<Self::Block>,
-        P::Api: AuraApi<Self::Block, AuthorityId>;
+		P: ProvideRuntimeApi<Self::Block>,
+		P::Api: AuraApi<Self::Block, AuthorityId>;
 }
 
 pub trait OrderCriteria {

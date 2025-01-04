@@ -27,10 +27,13 @@ sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-keystore = { workspace = true }
 sc-service = { workspace = true }
+sc-consensus-aura = { workspace = true }
 
 # Cumulus
 cumulus-primitives-core = { workspace = true }
 cumulus-relay-chain-interface = { workspace = true }
+cumulus-client-consensus-aura = { workspace = true }
+cumulus-client-consensus-common = { workspace = true }
 
 # Polkadot
 polkadot-primitives = { workspace = true }

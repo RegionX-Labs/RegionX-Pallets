@@ -10,6 +10,7 @@ use crate::{
 	config::{OnDemandConfig, OrderCriteria},
 };
 use codec::{Codec, Decode};
+use cumulus_client_consensus_common as consensus_common;
 use cumulus_primitives_core::{
 	relay_chain::{BlockNumber as RelayBlockNumber, Nonce},
 	ParaId, PersistedValidationData,
@@ -29,10 +30,13 @@ use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_core::H256;
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
+	generic::BlockId,
 	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
 	RuntimeAppPublic,
 };
-use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
+use sc_consensus_aura::standalone::slot_author;
+use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc, time::Duration};
+use sp_core::crypto::Pair as PairT;
 
 mod chain;
 pub mod config;
@@ -40,7 +44,7 @@ pub mod config;
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<P, R, ExPool, Block, Balance, Config, ThresholdParameter>(
+pub fn start_on_demand<P, R, ExPool, Block, Pair, Balance, Config, ThresholdParameter>(
 	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: R,
@@ -61,6 +65,7 @@ where
 		+ AtLeast32BitUnsigned
 		+ Copy
 		+ From<u128>,
+	Pair: PairT<Public = AuthorityId> + 'static,
 	R: RelayChainInterface + Clone + 'static,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	ThresholdParameter: ThresholdParameterT,
@@ -78,7 +83,7 @@ where
 	);
 
 	let on_demand_task =
-		run_on_demand_task::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+		run_on_demand_task::<P, R, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 			para_id,
 			parachain,
 			relay_chain,
@@ -97,7 +102,7 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn run_on_demand_task<P, R, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -115,6 +120,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 		+ AtLeast32BitUnsigned
 		+ Copy
 		+ From<u128>,
+	Pair: PairT<Public = AuthorityId> + 'static,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	ThresholdParameter: ThresholdParameterT,
@@ -130,7 +136,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	);
 
 	let relay_chain_notification =
-		follow_relay_chain::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+		follow_relay_chain::<P, R, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 			para_id,
 			parachain,
 			relay_chain,
@@ -147,7 +153,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	}
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn follow_relay_chain<P, R, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 	para_id: ParaId,
 	parachain: Arc<P>,
 	relay_chain: R,
@@ -165,6 +171,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 		+ AtLeast32BitUnsigned
 		+ Copy
 		+ From<u128>,
+	Pair: PairT<Public = AuthorityId> + 'static,
 	R: RelayChainInterface + Clone,
 	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	ThresholdParameter: ThresholdParameterT,
@@ -198,7 +205,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 							r_hash,
 						);
 
-						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
+						let _ = handle_relaychain_stream::<P, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 							validation_data,
 							height,
 							&*parachain,
@@ -221,7 +228,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn handle_relaychain_stream<P, Block, ExPool, Pair, Balance, Config, ThresholdParameter>(
 	validation_data: PersistedValidationData,
 	relay_height: RelayBlockNumber,
 	parachain: &P,
@@ -243,6 +250,7 @@ where
 		+ AtLeast32BitUnsigned
 		+ Copy
 		+ From<u128>,
+	Pair: PairT<Public = AuthorityId> + 'static,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
 	ThresholdParameter: ThresholdParameterT,
 	P::Api: AuraApi<Block, AuthorityId>
@@ -298,6 +306,11 @@ where
 	let head_hash = head.hash();
 	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
 
+	let relay_header = relay_chain.header(BlockId::Hash(r_hash)).await.unwrap().unwrap();
+	let (slot, _) =
+		consensus_common::relay_slot_and_timestamp(&relay_header, Duration::from_millis(6000))
+			.ok_or("Failed to get current relay slot")?;
+
 	// Aura ddos? NOTE: keep in mind that we are getting slots from the relay chain!
 	// TODO: we can't assume aura here....
 	//
@@ -306,8 +319,7 @@ where
 	//
 	// Aura on-demand solution seems like a more complete solution.
 
-	let expected_author = Config::author(&relay_chain, parachain, head_encoded)
-		.ok_or("Failed to get current author")?;
+	let expected_author: &AuthorityId = slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
 
 	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
