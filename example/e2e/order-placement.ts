@@ -35,8 +35,6 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
-    await force(paraApi, paraApi.tx.onDemand.setSlotWidth(2));
-
     // Assigning a core to the instantaneous coretime pool:
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
 
@@ -72,9 +70,17 @@ async function orderPlacementWorks() {
 
             assert(COLLATORS.includes(orderPlacer));
 
-            const blockHash = await paraApi.rpc.chain.getBlockHash();
-            const header = await paraApi.derive.chain.getHeader(blockHash);
-            console.log(header.author?.toHuman());
+            // Wait for next block to be produced:
+            const unsubscribe = await paraApi.rpc.chain.subscribeNewHeads(async (head) => {
+              console.log(`Parachain is at block: #${head.hash}`);
+              const header = await paraApi.derive.chain.getHeader(head.hash);
+
+              const author = header.author?.toHuman().toString();
+              console.log(`Block author: ${author}`);
+              assert(author === orderPlacer);
+
+              unsubscribe();
+            });
 
             counter++;
           }
@@ -107,8 +113,6 @@ async function orderPlacementWorks() {
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(newParaHeight > paraHeight, "Para should produce a block");
-    
-    // TODO: add test to check if the author is same as the order creator.
 }
 
 orderPlacementWorks().then(() => console.log("\n✅ Test complete ✅"));

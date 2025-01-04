@@ -73,7 +73,9 @@ impl pallet_balances::Config for Test {
 	type MaxFreezes = ();
 }
 
+#[cfg(feature = "runtime-benchmarks")]
 pub struct BenchHelper;
+#[cfg(feature = "runtime-benchmarks")]
 impl crate::BenchmarkHelper<Balance> for BenchHelper {
 	fn mock_threshold_parameter() -> Balance {
 		1_000u32.into()

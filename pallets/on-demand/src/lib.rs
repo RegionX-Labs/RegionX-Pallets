@@ -69,10 +69,6 @@ pub mod pallet {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	#[pallet::storage]
-	#[pallet::getter(fn slot_width)]
-	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
-
 	/// The threshold parameter stored in the runtime state.
 	#[pallet::storage]
 	#[pallet::getter(fn threshold_parameter)]
@@ -107,26 +103,11 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Set the slot width for on-demand blocks.
-		///
-		/// - `origin`: Must be Root or pass `AdminOrigin`.
-		/// - `width`: The slot width in relay chain blocks.
-		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::set_slot_width())]
-		pub fn set_slot_width(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
-			T::AdminOrigin::ensure_origin_or_root(origin)?;
-
-			SlotWidth::<T>::set(width.clone());
-			Self::deposit_event(Event::SlotWidthSet { width });
-
-			Ok(())
-		}
-
 		/// Set the threshold parameter.
 		///
 		/// - `origin`: Must be Root or pass `AdminOrigin`.
 		/// - `parameter`: The threshold parameter.
-		#[pallet::call_index(1)]
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::set_threshold_parameter())]
 		pub fn set_threshold_parameter(
 			origin: OriginFor<T>,
