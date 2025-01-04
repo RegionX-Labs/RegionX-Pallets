@@ -18,6 +18,18 @@ mod benchmarks {
 	use frame_support::traits::EnsureOrigin;
 
 	#[benchmark]
+	fn set_slot_width() -> Result<(), BenchmarkError> {
+		let origin =
+			T::AdminOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+
+		#[extrinsic_call]
+		_(origin as T::RuntimeOrigin, 1u32.into());
+
+		assert_last_event::<T>(Event::SlotWidthSet { width: 1u32.into() }.into());
+		Ok(())
+	}
+
+	#[benchmark]
 	fn set_threshold_parameter() -> Result<(), BenchmarkError> {
 		let origin =
 			T::AdminOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;

@@ -310,6 +310,12 @@ where
 		consensus_common::relay_slot_and_timestamp(&relay_header, Duration::from_millis(6000))
 			.ok_or("Failed to get current relay slot")?;
 
+	// TODO: lets provide both on-demand aura and the slot model.
+	// TODO: to achieve this we need to add a new generic type which implements a function for
+	// getting the expected order placer.
+	//
+	// NOTE: We can actually export exisitng implementations for both on-demand aura and the slot model.
+	// This can be done just like xcm common implementations are provided.
 	let expected_author: &AuthorityId =
 		slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
 
