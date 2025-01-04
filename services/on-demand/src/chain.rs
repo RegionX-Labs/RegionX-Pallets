@@ -1,15 +1,12 @@
 //! This file contains all the chain related interaction functions.
 
-use crate::{
-	chain::polkadot::{
-		on_demand_assignment_provider::storage::types::queue_status::QueueStatus,
-		runtime_types::{
-			pallet_broker::coretime_interface::CoreAssignment,
-			polkadot_parachain_primitives::primitives::Id,
-			polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
-		},
+use crate::chain::polkadot::{
+	on_demand_assignment_provider::storage::types::queue_status::QueueStatus,
+	runtime_types::{
+		pallet_broker::coretime_interface::CoreAssignment,
+		polkadot_parachain_primitives::primitives::Id,
+		polkadot_runtime_parachains::assigner_coretime::CoreDescriptor,
 	},
-	RelayBlockNumber,
 };
 use codec::{Codec, Decode};
 use cumulus_primitives_core::{relay_chain::CoreIndex, ParaId};
@@ -26,10 +23,7 @@ use sp_runtime::{
 	MultiSignature as SpMultiSignature, SaturatedConversion,
 };
 use std::{error::Error, fmt::Debug};
-use subxt::{
-	config::polkadot::PolkadotExtrinsicParamsBuilder as Params, tx::Signer, utils::MultiSignature,
-	Config, OnlineClient, PolkadotConfig,
-};
+use subxt::{tx::Signer, utils::MultiSignature, Config, OnlineClient, PolkadotConfig};
 
 #[subxt::subxt(runtime_metadata_path = "../../artifacts/metadata.scale")]
 pub mod polkadot {}
@@ -102,11 +96,9 @@ pub async fn submit_order(
 	url: &str,
 	para_id: ParaId,
 	max_amount: u128,
-	slot_width: RelayBlockNumber,
 	keystore: KeystorePtr,
 ) -> Result<(), Box<dyn Error>> {
 	let client = OnlineClient::<PolkadotConfig>::from_url(url).await?;
-	let latest_block = client.blocks().at_latest().await?;
 
 	let place_order = polkadot::tx()
 		.on_demand_assignment_provider()
@@ -114,13 +106,7 @@ pub async fn submit_order(
 
 	let signer_keystore = SignerKeystore::<PolkadotConfig>::new(keystore.clone());
 
-	// The lowest transaction mortality possible is 4.
-	// let tx_params = Params::new().mortal(latest_block.header(),
-	// slot_width.max(4).into()).build(); ^^^^ TODO: don't anchor to the latest_block, but to the
-	// slot start such that it is no longer valid in the next slot.
-
-	// let submit_result =
-	// 	client.tx().sign_and_submit(&place_order, &signer_keystore, tx_params).await;
+	// TODO: Ideally the transaction should only be valid for one slot.
 	let submit_result = client.tx().sign_and_submit_default(&place_order, &signer_keystore).await;
 	log::info!("submit_result: {:?}", submit_result);
 	submit_result?;

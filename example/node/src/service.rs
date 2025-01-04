@@ -29,8 +29,7 @@ use cumulus_primitives_core::{
 use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInterface};
 
 // Substrate Imports
-use codec::{Decode, Encode};
-use cumulus_primitives_core::BlockT;
+use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
@@ -45,7 +44,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
-use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
+use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_keystore::KeystorePtr;
 
 // RegionX Modules
@@ -75,24 +74,6 @@ impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
 	type OrderPlacementCriteria = OrderPlacementCriteria;
 	type AuthorPub = AuraId;
 	type Block = Block;
-
-	fn author<R, P>(
-		relay_chain: &R,
-		para: &P,
-		relay_head_encoded: Vec<u8>,
-	) -> Option<Self::AuthorPub>
-	where
-	    R: RelayChainInterface + Clone,
-		P: ProvideRuntimeApi<Self::Block>,
-		P::Api: AuraApi<Self::Block, AuthorityId>,
-	{
-		let head = <<Block as BlockT>::Header>::decode(&mut &relay_head_encoded[..]).ok()?;
-
-		let head_hash = head.hash();
-		let authorities = para.runtime_api().authorities(head_hash).map_err(Box::new).ok()?;
-
-		None
-	}
 }
 
 // https://github.com/paritytech/cumulus/issues/2154
@@ -226,7 +207,7 @@ fn build_import_queue(
 	task_manager: &TaskManager,
 ) -> sc_consensus::DefaultImportQueue<Block> {
 	cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
-		sp_consensus_aura::sr25519::AuthorityPair,
+		AuthorityPair,
 		_,
 		_,
 		_,
@@ -297,9 +278,7 @@ fn start_consensus(
 		authoring_duration: Duration::from_millis(2000),
 		reinitialize: false,
 	};
-	let fut = aura::run::<Block, sp_consensus_aura::sr25519::AuthorityPair, _, _, _, _, _, _, _, _>(
-		params,
-	);
+	let fut = aura::run::<Block, AuthorityPair, _, _, _, _, _, _, _, _>(params);
 	task_manager.spawn_essential_handle().spawn("aura", None, fut);
 
 	Ok(())
@@ -469,7 +448,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, _, OnDemandConfig, ThresholdParameter>(
+		start_on_demand::<_, _, _, _, AuthorityPair, _, OnDemandConfig, ThresholdParameter>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),

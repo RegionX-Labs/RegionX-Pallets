@@ -23,20 +23,19 @@ use on_demand_primitives::{
 };
 use polkadot_primitives::OccupiedCoreAssumption;
 use sc_client_api::UsageProvider;
+use sc_consensus_aura::standalone::slot_author;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::MaintainedTransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
-use sp_core::H256;
+use sp_core::{crypto::Pair as PairT, H256};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	generic::BlockId,
 	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
 	RuntimeAppPublic,
 };
-use sc_consensus_aura::standalone::slot_author;
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc, time::Duration};
-use sp_core::crypto::Pair as PairT;
 
 mod chain;
 pub mod config;
@@ -311,15 +310,8 @@ where
 		consensus_common::relay_slot_and_timestamp(&relay_header, Duration::from_millis(6000))
 			.ok_or("Failed to get current relay slot")?;
 
-	// Aura ddos? NOTE: keep in mind that we are getting slots from the relay chain!
-	// TODO: we can't assume aura here....
-	//
-	// The slot width solution doesn't really make sense because what is the incentive?
-	// The order creator is not the block producer...
-	//
-	// Aura on-demand solution seems like a more complete solution.
-
-	let expected_author: &AuthorityId = slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
+	let expected_author: &AuthorityId =
+		slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
 
 	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
@@ -368,7 +360,7 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(&relay_url, para_id, spot_price.into(), 0, keystore).await?;
+	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
 
 	Ok(())
 }
