@@ -26,9 +26,12 @@ use sc_service::TaskManager;
 use sc_transaction_pool_api::MaintainedTransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
-use sp_core::{ByteArray, H256};
+use sp_core::H256;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
+use sp_runtime::{
+	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
+	RuntimeAppPublic,
+};
 use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
 
 mod chain;
@@ -64,7 +67,7 @@ where
 	P::Api: AuraApi<Block, AuthorityId>
 		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
-	Config: OnDemandConfig + 'static,
+	Config: OnDemandConfig<Block = Block> + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let mut url = String::from("ws://"); // <- TODO wss
@@ -118,7 +121,7 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	P::Api: AuraApi<Block, AuthorityId>
 		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
-	Config: OnDemandConfig + 'static,
+	Config: OnDemandConfig<Block = Block> + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	log::info!(
@@ -168,7 +171,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	P::Api: AuraApi<Block, AuthorityId>
 		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
-	Config: OnDemandConfig + 'static,
+	Config: OnDemandConfig<Block = Block> + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
@@ -245,7 +248,7 @@ where
 	P::Api: AuraApi<Block, AuthorityId>
 		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
-	Config: OnDemandConfig + 'static,
+	Config: OnDemandConfig<Block = Block> + 'static,
 	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
 {
 	let is_parathread = is_parathread(&relay_chain, r_hash, para_id).await?;
@@ -294,12 +297,17 @@ where
 
 	let head_hash = head.hash();
 	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
-	let slot_width = parachain.runtime_api().slot_width(head_hash)?;
 
-	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
-	let indx = (relay_height >> slot_width) % authorities.len() as u32;
-	let expected_author =
-		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
+	// Aura ddos? NOTE: keep in mind that we are getting slots from the relay chain!
+	// TODO: we can't assume aura here....
+	//
+	// The slot width solution doesn't really make sense because what is the incentive?
+	// The order creator is not the block producer...
+	//
+	// Aura on-demand solution seems like a more complete solution.
+
+	let expected_author = Config::author(&relay_chain, parachain, head_encoded)
+		.ok_or("Failed to get current author")?;
 
 	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
@@ -348,7 +356,7 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(&relay_url, para_id, spot_price.into(), slot_width, keystore).await?;
+	chain::submit_order(&relay_url, para_id, spot_price.into(), 0, keystore).await?;
 
 	Ok(())
 }

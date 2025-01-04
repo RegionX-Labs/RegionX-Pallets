@@ -35,7 +35,7 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
-    // TODO: set slot width
+    await force(paraApi, paraApi.tx.onDemand.setSlotWidth(2));
 
     // Assigning a core to the instantaneous coretime pool:
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
@@ -63,7 +63,7 @@ async function orderPlacementWorks() {
 
     await new Promise(async (resolve, reject) => {
       const unsub: any = await relayApi.query.system.events((events: any) => {
-        events.forEach((record: EventRecord) => {
+        events.forEach(async (record: EventRecord) => {
           const { event } = record;
 
           if(event.method === 'OnDemandOrderPlaced') {
@@ -71,6 +71,10 @@ async function orderPlacementWorks() {
             const orderPlacer = event.data[2].toString();
 
             assert(COLLATORS.includes(orderPlacer));
+
+            const blockHash = await paraApi.rpc.chain.getBlockHash();
+            const header = await paraApi.derive.chain.getHeader(blockHash);
+            console.log(header.author?.toHuman());
 
             counter++;
           }
@@ -103,8 +107,6 @@ async function orderPlacementWorks() {
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(newParaHeight > paraHeight, "Para should produce a block");
-
-    // TODO: update tests given that we updated the MILLIS_PER_BLOCK
     
     // TODO: add test to check if the author is same as the order creator.
 }

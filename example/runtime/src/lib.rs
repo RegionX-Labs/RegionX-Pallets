@@ -185,7 +185,7 @@ mod block_times {
 	/// slot_duration()`.
 	///
 	/// Change this to adjust the block time.
-	pub const MILLI_SECS_PER_BLOCK: u64 =  30 * 1000; 
+	pub const MILLI_SECS_PER_BLOCK: u64 = 30 * 1000;
 	// ^^^^ 30 seconds. In production this should be set to a higher value to give enough time for
 	// an order and a block to be created in the same slot.
 

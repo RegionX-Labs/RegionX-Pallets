@@ -29,11 +29,12 @@ use cumulus_primitives_core::{
 use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInterface};
 
 // Substrate Imports
-use codec::Encode;
+use codec::{Decode, Encode};
+use cumulus_primitives_core::BlockT;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
-use parachain_example_runtime::ThresholdParameter;
+use parachain_example_runtime::{AuraId, ThresholdParameter};
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
 use sc_client_api::{Backend, UsageProvider};
@@ -44,6 +45,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
 use sp_keystore::KeystorePtr;
 
 // RegionX Modules
@@ -71,6 +73,26 @@ pub type Service = PartialComponents<
 pub struct OnDemandConfig;
 impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
 	type OrderPlacementCriteria = OrderPlacementCriteria;
+	type AuthorPub = AuraId;
+	type Block = Block;
+
+	fn author<R, P>(
+		relay_chain: &R,
+		para: &P,
+		relay_head_encoded: Vec<u8>,
+	) -> Option<Self::AuthorPub>
+	where
+	    R: RelayChainInterface + Clone,
+		P: ProvideRuntimeApi<Self::Block>,
+		P::Api: AuraApi<Self::Block, AuthorityId>,
+	{
+		let head = <<Block as BlockT>::Header>::decode(&mut &relay_head_encoded[..]).ok()?;
+
+		let head_hash = head.hash();
+		let authorities = para.runtime_api().authorities(head_hash).map_err(Box::new).ok()?;
+
+		None
+	}
 }
 
 // https://github.com/paritytech/cumulus/issues/2154
