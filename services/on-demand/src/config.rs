@@ -60,6 +60,7 @@ pub trait OnDemandConfig {
 		para: &Self::P,
 		relay_hash: H256,
 		para_hash: <Self::Block as BlockT>::Hash,
+		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture;
 }
 
@@ -121,20 +122,18 @@ where
 		para: &P,
 		relay_hash: H256,
 		para_hash: <Block as BlockT>::Hash,
+		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {
 		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);
 		let relay_header_future = relay_chain.header(BlockId::Hash(relay_hash));
 
 		Box::pin(async move {
 			let authorities = authorities_result?;
-			let relay_header = relay_header_future
-				.await
-				.map_err(|_| "Failed to get header")?
-				.ok_or("Header not found")?;
+			let relay_header = relay_header_future.await?.ok_or("Header not found")?;
 
 			let (slot, _) = consensus_common::relay_slot_and_timestamp(
 				&relay_header,
-				Duration::from_millis(6000),
+				relay_chain_slot_duration,
 			)
 			.ok_or("Failed to get current relay slot")?;
 

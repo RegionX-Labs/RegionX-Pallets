@@ -457,6 +457,7 @@ pub async fn start_parachain_node(
 			params.keystore_container.keystore(),
 			relay_rpc,
 			on_demand_baseline_balance,
+			relay_chain_slot_duration,
 		)?;
 		start_consensus(
 			client.clone(),

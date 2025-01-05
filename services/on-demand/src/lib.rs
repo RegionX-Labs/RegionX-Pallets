@@ -28,7 +28,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header},
 	RuntimeAppPublic,
 };
-use std::{error::Error, net::SocketAddr, sync::Arc};
+use std::{error::Error, net::SocketAddr, sync::Arc, time::Duration};
 
 mod chain;
 pub mod config;
@@ -45,6 +45,7 @@ pub fn start_on_demand<Config>(
 	keystore: KeystorePtr,
 	relay_rpc: Option<SocketAddr>,
 	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) -> sc_service::error::Result<()>
 where
 	Config: OnDemandConfig + 'static,
@@ -66,6 +67,7 @@ where
 		transaction_pool,
 		url,
 		rc_balance_baseline,
+		rc_slot_duration,
 	);
 
 	task_manager.spawn_essential_handle().spawn_blocking(
@@ -85,6 +87,7 @@ async fn run_on_demand_task<Config>(
 	transaction_pool: Arc<Config::ExPool>,
 	relay_url: String,
 	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) where
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria:
@@ -103,6 +106,7 @@ async fn run_on_demand_task<Config>(
 		transaction_pool,
 		relay_url,
 		rc_balance_baseline,
+		rc_slot_duration,
 	);
 
 	// let event_notification = event_notification(para_id, url, order_record);
@@ -120,6 +124,7 @@ async fn follow_relay_chain<Config>(
 	transaction_pool: Arc<Config::ExPool>,
 	relay_url: String,
 	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) where
 	Config: OnDemandConfig + 'static,
 	Config::OrderPlacementCriteria:
@@ -160,6 +165,7 @@ async fn follow_relay_chain<Config>(
 							para_id,
 							relay_url.clone(),
 							rc_balance_baseline,
+							rc_slot_duration,
 						).await;
 					},
 					None => {
@@ -183,6 +189,7 @@ async fn handle_relaychain_stream<Config>(
 	para_id: ParaId,
 	relay_url: String,
 	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) -> Result<(), Box<dyn Error>>
 where
 	Config: OnDemandConfig + 'static,
@@ -234,11 +241,15 @@ where
 	let head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
 	let p_hash = head.hash();
-	let order_placer =
-		Config::order_placer(Box::leak(Box::new(relay_chain.clone())), parachain, r_hash, p_hash)
-			.await
-			.unwrap()
-			.clone();
+	let order_placer = Config::order_placer(
+		Box::leak(Box::new(relay_chain.clone())), // <- TODO
+		parachain,
+		r_hash,
+		p_hash,
+		rc_slot_duration,
+	)
+	.await?
+	.clone();
 
 	if !keystore.has_keys(&[(order_placer.to_raw_vec(), sp_application_crypto::key_types::AURA)]) {
 		// Expected author is not in the keystore therefore we are not responsible for order
