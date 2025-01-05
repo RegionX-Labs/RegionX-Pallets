@@ -9,8 +9,7 @@ use crate::{
 	},
 	config::{OnDemandConfig, OrderCriteria},
 };
-use codec::{Codec, Decode};
-use cumulus_client_consensus_common as consensus_common;
+use codec::Decode;
 use cumulus_primitives_core::{
 	relay_chain::{BlockNumber as RelayBlockNumber, Nonce},
 	ParaId, PersistedValidationData,
@@ -19,23 +18,17 @@ use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
 use on_demand_primitives::{
 	well_known_keys::{account, ON_DEMAND_QUEUE},
-	EnqueuedOrder, OnDemandRuntimeApi, ThresholdParameterT,
+	EnqueuedOrder,
 };
 use polkadot_primitives::OccupiedCoreAssumption;
-use sc_client_api::UsageProvider;
-use sc_consensus_aura::standalone::slot_author;
 use sc_service::TaskManager;
-use sc_transaction_pool_api::MaintainedTransactionPool;
-use sp_api::ProvideRuntimeApi;
-use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
-use sp_core::{crypto::Pair as PairT, H256};
+use sp_core::H256;
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
-	generic::BlockId,
-	traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay},
+	traits::{Block as BlockT, Header},
 	RuntimeAppPublic,
 };
-use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc, time::Duration};
+use std::{error::Error, net::SocketAddr, sync::Arc};
 
 mod chain;
 pub mod config;
