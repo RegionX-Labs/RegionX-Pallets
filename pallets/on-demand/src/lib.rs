@@ -72,7 +72,8 @@ pub mod pallet {
 	/// Defines how often a new on-demand order is created, based on the number of slots.
 	///
 	/// This will limit the block production rate. However, if set to a low value, collators
-	/// will struggle to coordinate effectively, leading to unnecessary multiple orders being placed.
+	/// will struggle to coordinate effectively, leading to unnecessary multiple orders being
+	/// placed.
 	#[pallet::storage]
 	#[pallet::getter(fn slot_width)]
 	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;

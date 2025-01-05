@@ -302,31 +302,17 @@ where
 	let head_encoded = validation_data.clone().parent_head.0;
 	let head = <<Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
-	let head_hash = head.hash();
-	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
+	let p_hash = head.hash();
+	let order_placer = Config::order_placer(&relay_chain, parachain, p_hash, r_hash)?;
 
-	let relay_header = relay_chain.header(BlockId::Hash(r_hash)).await.unwrap().unwrap();
-	let (slot, _) =
-		consensus_common::relay_slot_and_timestamp(&relay_header, Duration::from_millis(6000))
-			.ok_or("Failed to get current relay slot")?;
-
-	// TODO: lets provide both on-demand aura and the slot model.
-	// TODO: to achieve this we need to add a new generic type which implements a function for
-	// getting the expected order placer.
-	//
-	// NOTE: We can actually export exisitng implementations for both on-demand aura and the slot model.
-	// This can be done just like xcm common implementations are provided.
-	let expected_author: &AuthorityId =
-		slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
-
-	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
+	if !keystore.has_keys(&[(order_placer.to_raw_vec(), sp_application_crypto::key_types::AURA)])
 	{
 		// Expected author is not in the keystore therefore we are not responsible for order
 		// creation.
 		log::info!(
 			target: LOG_TARGET,
 			"Waiting for {} to create an order",
-			expected_author
+			order_placer
 		);
 		return Ok(())
 	}
