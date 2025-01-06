@@ -46,6 +46,7 @@ use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_keystore::KeystorePtr;
+use on_demand_service::config::OnDemandAura;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -69,12 +70,16 @@ pub type Service = PartialComponents<
 	(ParachainBlockImport, Option<Telemetry>, Option<TelemetryWorkerHandle>),
 >;
 
-pub struct OnDemandConfig;
-impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
-	type OrderPlacementCriteria = OrderPlacementCriteria;
-	type AuthorPub = AuraId;
-	type Block = Block;
-}
+type OnDemandConfig = OnDemandAura<
+	Arc<dyn RelayChainInterface>,
+	ParachainClient,
+	Block,
+	AuthorityPair,
+	sc_transaction_pool::FullPool<Block, ParachainClient>,
+	Balance,
+	OrderPlacementCriteria,
+	Balance,
+>;
 
 // https://github.com/paritytech/cumulus/issues/2154
 pub struct OrderPlacementCriteria;
@@ -448,7 +453,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, AuthorityPair, _, OnDemandConfig, ThresholdParameter>(
+		start_on_demand::<OnDemandConfig>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),
