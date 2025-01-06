@@ -21,7 +21,10 @@ use on_demand_primitives::{
 	EnqueuedOrder,
 };
 use polkadot_primitives::OccupiedCoreAssumption;
+use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
+use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::AuraApi;
 use sp_core::H256;
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
@@ -36,8 +39,8 @@ pub mod config;
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<Config>(
-	parachain: Arc<Config::P>,
+pub fn start_on_demand<P, Config>(
+	parachain: Arc<P>,
 	para_id: ParaId,
 	relay_chain: Config::R,
 	transaction_pool: Arc<Config::ExPool>,
@@ -48,9 +51,11 @@ pub fn start_on_demand<Config>(
 	rc_slot_duration: Duration,
 ) -> sc_service::error::Result<()>
 where
-	Config: OnDemandConfig + 'static,
+	P: ProvideRuntimeApi<Config::Block> + UsageProvider<Config::Block> + Send + Sync + 'static,
+	P::Api: AuraApi<Config::Block, Config::AuthorPub>,
+	Config: OnDemandConfig<P> + 'static,
 	Config::OrderPlacementCriteria:
-		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
+		OrderCriteria<P = P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let mut url = String::from("ws://"); // <- TODO wss
 	url.push_str(
@@ -59,7 +64,7 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task = run_on_demand_task::<Config>(
+	let on_demand_task = run_on_demand_task::<P, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -79,9 +84,9 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<Config>(
+async fn run_on_demand_task<P, Config>(
 	para_id: ParaId,
-	parachain: Arc<Config::P>,
+	parachain: Arc<P>,
 	relay_chain: Config::R,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<Config::ExPool>,
@@ -89,16 +94,18 @@ async fn run_on_demand_task<Config>(
 	rc_balance_baseline: Config::Balance,
 	rc_slot_duration: Duration,
 ) where
-	Config: OnDemandConfig + 'static,
+	P: ProvideRuntimeApi<Config::Block> + UsageProvider<Config::Block> + Send + Sync + 'static,
+	P::Api: AuraApi<Config::Block, Config::AuthorPub>,
+	Config: OnDemandConfig<P> + 'static,
 	Config::OrderPlacementCriteria:
-		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
+		OrderCriteria<P = P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	log::info!(
 		target: LOG_TARGET,
 		"Starting on-demand task"
 	);
 
-	let relay_chain_notification = follow_relay_chain::<Config>(
+	let relay_chain_notification = follow_relay_chain::<P, Config>(
 		para_id,
 		parachain,
 		relay_chain,
@@ -116,9 +123,9 @@ async fn run_on_demand_task<Config>(
 	}
 }
 
-async fn follow_relay_chain<Config>(
+async fn follow_relay_chain<P, Config>(
 	para_id: ParaId,
-	parachain: Arc<Config::P>,
+	parachain: Arc<P>,
 	relay_chain: Config::R,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<Config::ExPool>,
@@ -126,9 +133,11 @@ async fn follow_relay_chain<Config>(
 	rc_balance_baseline: Config::Balance,
 	rc_slot_duration: Duration,
 ) where
-	Config: OnDemandConfig + 'static,
+	P: ProvideRuntimeApi<Config::Block> + UsageProvider<Config::Block> + Send + Sync + 'static,
+	P::Api: AuraApi<Config::Block, Config::AuthorPub>,
+	Config: OnDemandConfig<P> + 'static,
 	Config::OrderPlacementCriteria:
-		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
+		OrderCriteria<P = P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -154,7 +163,7 @@ async fn follow_relay_chain<Config>(
 							r_hash,
 						);
 
-						let _ = handle_relaychain_stream::<Config>(
+						let _ = handle_relaychain_stream::<P, Config>(
 							validation_data,
 							height,
 							&*parachain,
@@ -178,10 +187,10 @@ async fn follow_relay_chain<Config>(
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<Config>(
+async fn handle_relaychain_stream<P, Config>(
 	validation_data: PersistedValidationData,
 	relay_height: RelayBlockNumber,
-	parachain: &Config::P,
+	parachain: &P,
 	keystore: KeystorePtr,
 	transaction_pool: Arc<Config::ExPool>,
 	relay_chain: Config::R,
@@ -192,9 +201,11 @@ async fn handle_relaychain_stream<Config>(
 	rc_slot_duration: Duration,
 ) -> Result<(), Box<dyn Error>>
 where
-	Config: OnDemandConfig + 'static,
+	P: ProvideRuntimeApi<Config::Block> + UsageProvider<Config::Block> + Send + Sync + 'static,
+	P::Api: AuraApi<Config::Block, Config::AuthorPub>,
+	Config: OnDemandConfig<P> + 'static,
 	Config::OrderPlacementCriteria:
-		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
+		OrderCriteria<P = P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let is_parathread = is_parathread(&relay_chain, r_hash, para_id).await?;
 
@@ -241,11 +252,14 @@ where
 	let head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
 	let p_hash = head.hash();
+	let authorities = parachain.runtime_api().authorities(p_hash).map_err(Box::new)?;
+
 	let order_placer = Config::order_placer(
 		Box::leak(Box::new(relay_chain.clone())), // <- TODO
 		parachain,
 		r_hash,
 		p_hash,
+		authorities,
 		rc_slot_duration,
 	)
 	.await?

@@ -32,6 +32,7 @@ use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInter
 use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
+use on_demand_service::config::OnDemandAura;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
 use parachain_example_runtime::{AuraId, ThresholdParameter};
 use polkadot_primitives::Balance;
@@ -69,12 +70,16 @@ pub type Service = PartialComponents<
 	(ParachainBlockImport, Option<Telemetry>, Option<TelemetryWorkerHandle>),
 >;
 
-pub struct OnDemandConfig;
-impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
-	type OrderPlacementCriteria = OrderPlacementCriteria;
-	type AuthorPub = AuraId;
-	type Block = Block;
-}
+type OnDemandConfig = OnDemandAura<
+	Arc<dyn RelayChainInterface>,
+	ParachainClient,
+	Block,
+	AuthorityPair,
+	sc_transaction_pool::FullPool<Block, ParachainClient>,
+	Balance,
+	OrderPlacementCriteria,
+	Balance,
+>;
 
 // https://github.com/paritytech/cumulus/issues/2154
 pub struct OrderPlacementCriteria;
@@ -448,7 +453,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, AuthorityPair, _, OnDemandConfig, ThresholdParameter>(
+		start_on_demand::<ParachainClient, OnDemandConfig>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),

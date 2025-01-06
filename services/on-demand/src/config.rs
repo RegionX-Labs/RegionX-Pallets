@@ -19,21 +19,21 @@ use sp_runtime::{
 };
 use std::{error::Error, fmt::Display, future::Future, pin::Pin, time::Duration};
 
-pub trait OnDemandConfig {
+pub trait OnDemandConfig<
+	P: ProvideRuntimeApi<Self::Block> + UsageProvider<Self::Block> + Send + Sync,
+>
+{
 	/// Custom order placement criteria.
 	type OrderPlacementCriteria: OrderCriteria;
 
 	/// Author identifier.
-	type AuthorPub: Member + RuntimeAppPublic + Display + Send;
+	type AuthorPub: Member + RuntimeAppPublic + Display + Send + Codec;
 
 	/// Block type.
 	type Block: BlockT;
 
 	/// Relay chain.
 	type R: RelayChainInterface + Clone;
-
-	/// Parachain.
-	type P: ProvideRuntimeApi<Self::Block> + UsageProvider<Self::Block> + Send + Sync;
 
 	/// Extrinsic pool.
 	type ExPool: MaintainedTransactionPool<Block = Self::Block, Hash = <Self::Block as BlockT>::Hash>
@@ -57,9 +57,10 @@ pub trait OnDemandConfig {
 
 	fn order_placer(
 		relay_chain: &'static Self::R,
-		para: &Self::P,
+		para: &P,
 		relay_hash: H256,
 		para_hash: <Self::Block as BlockT>::Hash,
+		authorities: Vec<Self::AuthorPub>,
 		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture;
 }
@@ -81,12 +82,11 @@ pub trait OrderCriteria {
 pub struct OnDemandAura<R, P, Block, Pair, ExPool, Balance, C, T>(
 	PhantomData<(R, P, Block, Pair, ExPool, Balance, C, T)>,
 );
-impl<P, R, Block, Pair, ExPool, Balance, Criteria, Threshold> OnDemandConfig
+impl<P, R, Block, Pair, ExPool, Balance, Criteria, Threshold> OnDemandConfig<P>
 	for OnDemandAura<R, P, Block, Pair, ExPool, Balance, Criteria, Threshold>
 where
 	R: RelayChainInterface + Clone + Sync + Send,
 	P: ProvideRuntimeApi<Block> + UsageProvider<Block> + Sync + Send,
-	P::Api: AuraApi<Block, Pair::Public>,
 	Criteria: OrderCriteria,
 	Pair: PairT + 'static,
 	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
@@ -103,7 +103,6 @@ where
 	Block: BlockT<Hash = H256>,
 	Threshold: ThresholdParameterT,
 {
-	type P = P;
 	type R = R;
 
 	type OrderPlacementCriteria = Criteria;
@@ -122,13 +121,12 @@ where
 		para: &P,
 		relay_hash: H256,
 		para_hash: <Block as BlockT>::Hash,
+		authorities: Vec<Self::AuthorPub>,
 		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {
-		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);
 		let relay_header_future = relay_chain.header(BlockId::Hash(relay_hash));
 
 		Box::pin(async move {
-			let authorities = authorities_result?;
 			let relay_header = relay_header_future.await?.ok_or("Header not found")?;
 
 			let (slot, _) = consensus_common::relay_slot_and_timestamp(
