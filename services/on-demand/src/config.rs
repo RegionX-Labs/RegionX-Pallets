@@ -11,7 +11,6 @@ use sc_service::Arc;
 use sc_transaction_pool_api::MaintainedTransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::RuntimeAppPublic;
-use sp_consensus_aura::AuraApi;
 use sp_core::{crypto::Pair as PairT, H256};
 use sp_runtime::{
 	generic::BlockId,
@@ -118,9 +117,9 @@ where
 
 	fn order_placer(
 		relay_chain: &'static R,
-		para: &P,
+		_para: &P,
 		relay_hash: H256,
-		para_hash: <Block as BlockT>::Hash,
+		_para_hash: <Block as BlockT>::Hash,
 		authorities: Vec<Self::AuthorPub>,
 		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {

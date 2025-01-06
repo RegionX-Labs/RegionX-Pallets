@@ -34,7 +34,6 @@ use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
 use on_demand_service::config::OnDemandAura;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
-use parachain_example_runtime::{AuraId, ThresholdParameter};
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
 use sc_client_api::{Backend, UsageProvider};
