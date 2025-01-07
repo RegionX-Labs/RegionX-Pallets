@@ -238,14 +238,13 @@ where
 	}
 
 	let head_encoded = validation_data.clone().parent_head.0;
-	let head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
+	let para_head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
-	let p_hash = head.hash();
 	let order_placer = Config::order_placer(
 		Box::leak(Box::new(relay_chain.clone())), // <- TODO
 		parachain,
 		r_hash,
-		p_hash,
+		para_head,
 		rc_slot_duration,
 	)
 	.await?

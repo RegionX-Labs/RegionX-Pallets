@@ -1,21 +1,22 @@
 //! This file contains all the configuration related traits.
 
 use crate::RelayBlockNumber;
-use codec::Codec;
-use cumulus_client_consensus_common as consensus_common;
+use codec::{Codec, Decode};
+use cumulus_primitives_core::ConsensusEngineId;
 use cumulus_relay_chain_interface::RelayChainInterface;
 use on_demand_primitives::ThresholdParameterT;
 use sc_client_api::UsageProvider;
-use sc_consensus_aura::standalone::slot_author;
 use sc_service::Arc;
 use sc_transaction_pool_api::MaintainedTransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::RuntimeAppPublic;
-use sp_consensus_aura::AuraApi;
+use sp_consensus_aura::{AuraApi, Slot, AURA_ENGINE_ID};
 use sp_core::{crypto::Pair as PairT, H256};
 use sp_runtime::{
 	generic::BlockId,
-	traits::{AtLeast32BitUnsigned, Block as BlockT, Debug, MaybeDisplay, Member, PhantomData},
+	traits::{
+		AtLeast32BitUnsigned, Block as BlockT, Debug, Header, MaybeDisplay, Member, PhantomData,
+	},
 };
 use std::{error::Error, fmt::Display, future::Future, pin::Pin, time::Duration};
 
@@ -59,7 +60,7 @@ pub trait OnDemandConfig {
 		relay_chain: &'static Self::R,
 		para: &Self::P,
 		relay_hash: H256,
-		para_hash: <Self::Block as BlockT>::Hash,
+		para_header: <Self::Block as BlockT>::Header,
 		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture;
 }
@@ -121,26 +122,38 @@ where
 		relay_chain: &'static R,
 		para: &P,
 		relay_hash: H256,
-		para_hash: <Block as BlockT>::Hash,
+		para_header: <Self::Block as BlockT>::Header,
 		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {
+		let para_hash = para_header.hash();
 		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);
-		let relay_header_future = relay_chain.header(BlockId::Hash(relay_hash));
 
 		Box::pin(async move {
 			let authorities = authorities_result?;
-			let relay_header = relay_header_future.await?.ok_or("Header not found")?;
 
-			let (slot, _) = consensus_common::relay_slot_and_timestamp(
-				&relay_header,
-				relay_chain_slot_duration,
+			let author_index = find_author(
+				para_header.digest().logs().iter().filter_map(|d| d.as_pre_runtime()),
+				authorities.len(),
 			)
-			.ok_or("Failed to get current relay slot")?;
+			.ok_or("Could not find aura author index")?;
 
-			let expected_author: &Pair::Public =
-				slot_author::<Pair>(slot, &authorities).ok_or("Failed to get current author")?;
-
-			Ok(expected_author.clone())
+			let author = authorities.get(author_index as usize).ok_or("Invalid aura index")?;
+			Ok(author.clone())
 		})
 	}
+}
+
+fn find_author<'a, I>(digests: I, authorities_len: usize) -> Option<u32>
+where
+	I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
+{
+	for (id, mut data) in digests.into_iter() {
+		if id == AURA_ENGINE_ID {
+			let slot = Slot::decode(&mut data).ok()?;
+			let author_index = *slot % authorities_len as u64;
+			return Some(author_index as u32)
+		}
+	}
+
+	None
 }
