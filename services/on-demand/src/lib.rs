@@ -25,7 +25,7 @@ use sc_service::TaskManager;
 use sp_core::H256;
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
-	traits::{Block as BlockT, Header},
+	traits::{Block as BlockT},
 	RuntimeAppPublic,
 };
 use std::{error::Error, net::SocketAddr, sync::Arc, time::Duration};
