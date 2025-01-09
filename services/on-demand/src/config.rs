@@ -1,24 +1,28 @@
 //! This file contains all the configuration related traits.
 
-use crate::RelayBlockNumber;
-use codec::{Codec, Decode};
-use cumulus_primitives_core::ConsensusEngineId;
-use cumulus_relay_chain_interface::RelayChainInterface;
-use on_demand_primitives::{OnDemandRuntimeApi, ThresholdParameterT};
+use crate::{ParaId, PersistedValidationData, RelayBlockNumber};
+use codec::{Codec, Decode, Encode};
+use cumulus_primitives_core::{relay_chain::BlakeTwo256, ConsensusEngineId};
+use cumulus_relay_chain_interface::{PHash, RelayChainInterface};
+use on_demand_primitives::{well_known_keys::EVENTS, OnDemandRuntimeApi, ThresholdParameterT};
 use sc_client_api::UsageProvider;
 use sc_service::Arc;
 use sc_transaction_pool_api::MaintainedTransactionPool;
+use scale_info::TypeInfo;
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::RuntimeAppPublic;
 use sp_consensus_aura::{AuraApi, Slot, AURA_ENGINE_ID};
-use sp_core::{crypto::Pair as PairT, H256};
+use sp_core::crypto::Pair as PairT;
+use sp_inherents::InherentIdentifier;
 use sp_runtime::{
+	generic::BlockId,
 	traits::{
-		AtLeast32BitUnsigned, Block as BlockT, Debug, Header as HeaderT, MaybeDisplay,
-		Member, PhantomData,
+		AtLeast32BitUnsigned, Block as BlockT, Debug, Header as HeaderT, MaybeDisplay, Member,
+		PhantomData,
 	},
 };
-use std::{error::Error, fmt::Display, future::Future, pin::Pin};
+use sp_trie::{Trie, LayoutV1, TrieDBBuilder};
+use std::{error::Error, fmt::Display};
 
 pub trait OnDemandConfig {
 	/// Custom order placement criteria.
@@ -54,13 +58,11 @@ pub trait OnDemandConfig {
 	/// On-demand pallet threshold parameter.
 	type ThresholdParameter: ThresholdParameterT;
 
-	type OrderPlacerFuture: Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send;
-
 	fn order_placer(
 		para: &Self::P,
-		relay_hash: H256,
+		relay_hash: PHash,
 		para_header: <Self::Block as BlockT>::Header,
-	) -> Self::OrderPlacerFuture;
+	) -> Result<Self::AuthorPub, Box<dyn Error>>;
 }
 
 pub trait OrderCriteria {
@@ -80,6 +82,7 @@ pub trait OrderCriteria {
 pub struct OnDemandSlot<R, P, Block, Pair, ExPool, Balance, C, T>(
 	PhantomData<(R, P, Block, Pair, ExPool, Balance, C, T)>,
 );
+#[async_trait::async_trait]
 impl<P, R, Block, Pair, ExPool, Balance, Criteria, Threshold> OnDemandConfig
 	for OnDemandSlot<R, P, Block, Pair, ExPool, Balance, Criteria, Threshold>
 where
@@ -100,7 +103,7 @@ where
 		+ Copy
 		+ From<u128>,
 	Pair::Public: RuntimeAppPublic + Display + Member + Codec,
-	Block: BlockT<Hash = H256>,
+	Block: BlockT,
 	<<Block as BlockT>::Header as HeaderT>::Number: Into<u128>,
 	Threshold: ThresholdParameterT,
 {
@@ -115,34 +118,27 @@ where
 	type Balance = Balance;
 	type ThresholdParameter = Threshold;
 
-	type OrderPlacerFuture =
-		Pin<Box<dyn Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send>>;
-
 	fn order_placer(
 		para: &P,
-		_relay_hash: H256,
+		_relay_hash: PHash,
 		para_header: <Self::Block as BlockT>::Header,
-	) -> Self::OrderPlacerFuture {
+	) -> Result<Self::AuthorPub, Box<dyn Error>> {
 		let para_hash = para_header.hash();
 		let para_height: u128 = para_header.number().clone().into();
-		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);
-		let slot_width_result = para.runtime_api().slot_width(para_hash).map_err(Box::new);
+		let authorities = para.runtime_api().authorities(para_hash).map_err(Box::new)?;
+		let slot_width = para.runtime_api().slot_width(para_hash).map_err(Box::new)?;
 
-		Box::pin(async move {
-			let authorities = authorities_result?;
-			let slot_width = slot_width_result?;
+		let indx = (para_height >> slot_width) % authorities.len() as u128;
+		let author = authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
 
-			let indx = (para_height >> slot_width) % authorities.len() as u128;
-			let author = authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
-
-			Ok(author.clone())
-		})
+		Ok(author.clone())
 	}
 }
 
 pub struct OnDemandAura<R, P, Block, Pair, ExPool, Balance, C, T>(
 	PhantomData<(R, P, Block, Pair, ExPool, Balance, C, T)>,
 );
+#[async_trait::async_trait]
 impl<P, R, Block, Pair, ExPool, Balance, Criteria, Threshold> OnDemandConfig
 	for OnDemandAura<R, P, Block, Pair, ExPool, Balance, Criteria, Threshold>
 where
@@ -162,7 +158,7 @@ where
 		+ Copy
 		+ From<u128>,
 	Pair::Public: RuntimeAppPublic + Display + Member + Codec,
-	Block: BlockT<Hash = H256>,
+	Block: BlockT,
 	Threshold: ThresholdParameterT,
 {
 	type P = P;
@@ -176,29 +172,40 @@ where
 	type Balance = Balance;
 	type ThresholdParameter = Threshold;
 
-	type OrderPlacerFuture =
-		Pin<Box<dyn Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send>>;
-
 	fn order_placer(
 		para: &P,
-		_relay_hash: H256,
+		_relay_hash: PHash,
 		para_header: <Self::Block as BlockT>::Header,
-	) -> Self::OrderPlacerFuture {
+	) -> Result<Self::AuthorPub, Box<dyn Error>> {
 		let para_hash = para_header.hash();
-		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);
+		let authorities = para.runtime_api().authorities(para_hash).map_err(Box::new)?;
 
-		Box::pin(async move {
-			let authorities = authorities_result?;
+		let author_index = find_author(
+			para_header.digest().logs().iter().filter_map(|d| d.as_pre_runtime()),
+			authorities.len(),
+		)
+		.ok_or("Could not find aura author index")?;
 
-			let author_index = find_author(
-				para_header.digest().logs().iter().filter_map(|d| d.as_pre_runtime()),
-				authorities.len(),
-			)
-			.ok_or("Could not find aura author index")?;
+		let author = authorities.get(author_index as usize).ok_or("Invalid aura index")?;
+		Ok(author.clone())
+	}
+}
 
-			let author = authorities.get(author_index as usize).ok_or("Invalid aura index")?;
-			Ok(author.clone())
-		})
+async fn collect_relay_storage_proof(
+	relay_chain: &impl RelayChainInterface,
+	relay_parent: PHash,
+) -> Option<sp_state_machine::StorageProof> {
+	let mut relevant_keys = Vec::new();
+	// Get storage proof for events at a specific block.
+	relevant_keys.push(EVENTS.to_vec());
+
+	let relay_storage_proof = relay_chain.prove_read(relay_parent, &relevant_keys).await;
+	match relay_storage_proof {
+		Ok(proof) => Some(proof),
+		Err(err) => {
+			log::info!("RelayChainError:{:?}", err);
+			None
+		},
 	}
 }
 
@@ -215,4 +222,65 @@ where
 	}
 
 	None
+}
+
+// Identifier of the order inherent
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"orderiht";
+
+#[derive(Encode, Decode, sp_core::RuntimeDebug, Clone, PartialEq, TypeInfo)]
+pub struct OrderInherentData<AuthorityId> {
+	pub relay_storage_proof: sp_trie::StorageProof,
+	pub validation_data: Option<PersistedValidationData>,
+	pub para_id: ParaId,
+	pub sequence_number: u64,
+	pub author_pub: Option<AuthorityId>,
+}
+
+impl<AuthorityId: Clone> OrderInherentData<AuthorityId> {
+	pub async fn create_at(
+		relay_chain_interface: &impl RelayChainInterface,
+		para_id: ParaId,
+	) -> Option<OrderInherentData<AuthorityId>> {
+		let best_hash = relay_chain_interface.best_block_hash().await.unwrap(); // TODO
+		let header = relay_chain_interface.header(BlockId::Hash(best_hash)).await.unwrap().unwrap(); // TODO
+
+		let relay_storage_proof =
+			collect_relay_storage_proof(relay_chain_interface, header.hash()).await?;
+
+		let db = relay_storage_proof.to_memory_db::<BlakeTwo256>();
+		// TODO: LayoutV1 ?
+		let trie = TrieDBBuilder::<LayoutV1<BlakeTwo256>>::new(&db, &header.state_root).build();
+		let events = trie.get(EVENTS); // TODO: try to decode.
+
+		/*
+		Some(OrderInherentData {
+			relay_storage_proof: relay_storage_proof.clone(),
+			validation_data: validation_data.clone(),
+			para_id,
+			sequence_number,
+			author_pub: author_pub.clone(),
+		})
+		*/
+		None
+	}
+}
+
+#[async_trait::async_trait]
+impl<AuthorityId: Send + Sync + Codec> sp_inherents::InherentDataProvider
+	for OrderInherentData<AuthorityId>
+{
+	async fn provide_inherent_data(
+		&self,
+		inherent_data: &mut sp_inherents::InherentData,
+	) -> Result<(), sp_inherents::Error> {
+		inherent_data.put_data(INHERENT_IDENTIFIER, &self)
+	}
+
+	async fn try_handle_error(
+		&self,
+		_: &sp_inherents::InherentIdentifier,
+		_: &[u8],
+	) -> Option<Result<(), sp_inherents::Error>> {
+		None
+	}
 }

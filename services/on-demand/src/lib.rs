@@ -24,10 +24,7 @@ use polkadot_primitives::OccupiedCoreAssumption;
 use sc_service::TaskManager;
 use sp_core::H256;
 use sp_keystore::KeystorePtr;
-use sp_runtime::{
-	traits::{Block as BlockT},
-	RuntimeAppPublic,
-};
+use sp_runtime::{traits::Block as BlockT, RuntimeAppPublic};
 use std::{error::Error, net::SocketAddr, sync::Arc, time::Duration};
 
 mod chain;
@@ -240,13 +237,7 @@ where
 	let head_encoded = validation_data.clone().parent_head.0;
 	let para_head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
-	let order_placer = Config::order_placer(
-		parachain,
-		r_hash,
-		para_head,
-	)
-	.await?
-	.clone();
+	let order_placer = Config::order_placer(parachain, r_hash, para_head)?.clone();
 
 	if !keystore.has_keys(&[(order_placer.to_raw_vec(), sp_application_crypto::key_types::AURA)]) {
 		// Expected author is not in the keystore therefore we are not responsible for order
@@ -307,15 +298,23 @@ async fn new_best_heads(
 		relay_chain.new_best_notification_stream().await?.filter_map(move |n| {
 			let relay_chain = relay_chain.clone();
 			async move {
-				let validation_data: PersistedValidationData = relay_chain
-					.persisted_validation_data(n.hash(), para_id, OccupiedCoreAssumption::TimedOut)
-					.await
-					.map(|s| s.map(|s| s))
-					.ok()
-					.flatten()?;
-				Some((n.number, validation_data, n.hash()))
+				let data = validation_data(relay_chain, n.hash(), para_id).await?;
+				Some((n.number, data, n.hash()))
 			}
 		});
 
 	Ok(new_best_notification_stream)
+}
+
+async fn validation_data(
+	relay_chain: impl RelayChainInterface + Clone,
+	hash: H256,
+	para_id: ParaId,
+) -> Option<PersistedValidationData> {
+	relay_chain
+		.persisted_validation_data(hash, para_id, OccupiedCoreAssumption::TimedOut)
+		.await
+		.map(|s| s.map(|s| s))
+		.ok()
+		.flatten()
 }

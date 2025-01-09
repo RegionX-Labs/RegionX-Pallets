@@ -13,6 +13,7 @@ repository = "https://github.com/RegionX-Labs/RegionX-Pallets"
 edition = "2021"
 
 [workspace.dependencies]
+async-trait = "0.1.85"
 serde = { version = "1.0.201", default-features = false }
 smallvec = "1.11.0"
 futures = "0.3.31"
@@ -41,6 +42,9 @@ sp-core = { version = "34.0.0", default-features = false }
 sp-io = { version = "38.0.0", default-features = false }
 sp-runtime = { version = "39.0.1", default-features = false }
 sp-keystore = { version = "0.40.0", default-features = false }
+sp-state-machine = { version = "0.43.0", default-features = false }
+sp-inherents = { version = "34.0.0", default-features = false }
+sp-trie = { version = "37.0.0", default-features = false }
 
 pallet-broker = { version = "0.17.0", default-features = false }
 pallet-balances = { version = "39.0.0", default-features = false }

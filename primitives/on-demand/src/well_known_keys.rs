@@ -24,6 +24,9 @@ pub const CORE_DESCRIPTORS: &[u8] =
 pub const SYSTEM_ACCOUNT: &[u8] =
 	&hex_literal::hex!["26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da9"];
 
+pub const EVENTS: &[u8] =
+	&hex_literal::hex!["26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7"];
+
 pub fn account<AccountId: Encode>(acc: AccountId) -> Vec<u8> {
 	acc.using_encoded(|acc: &[u8]| {
 		SYSTEM_ACCOUNT

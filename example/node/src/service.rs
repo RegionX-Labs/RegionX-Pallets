@@ -32,6 +32,7 @@ use cumulus_relay_chain_interface::{BlockNumber, OverseerHandle, RelayChainInter
 use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
+use on_demand_service::config::{OnDemandSlot, OrderInherentData};
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
@@ -45,7 +46,6 @@ use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_keystore::KeystorePtr;
-use on_demand_service::config::OnDemandSlot;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -264,7 +264,22 @@ fn start_consensus(
 	);
 
 	let params = AuraParams {
-		create_inherent_data_providers: move |_, ()| async move { Ok(()) },
+		create_inherent_data_providers: move |_para_parent, ()| async move {
+			let relay_chain_interface = relay_chain_interface.clone();
+			async move {
+				let order_inherent = OrderInherentData::create_at(
+					&relay_chain_interface,
+					para_id,
+				)
+				.await;
+				let order_inherent = order_inherent.ok_or_else(|| {
+					Box::<dyn std::error::Error + Send + Sync>::from(
+						"Failed to create order inherent",
+					)
+				})?;
+				Ok(order_inherent)
+			}
+		},
 		block_import,
 		para_client: client.clone(),
 		para_backend: backend,
