@@ -17,7 +17,7 @@ const COLLATORS = [CHARLIE, EVE, FERDIE];
 
 const keyring = new Keyring({ type: "sr25519" });
 
-const MILLIS_PER_BLOCK = 24000;
+const MILLIS_PER_BLOCK = 12000;
 
 async function orderPlacementWorks() {
     const relayEndpoint = new WsProvider(RELAY_ENDPOINT);

@@ -45,7 +45,7 @@ use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_keystore::KeystorePtr;
-use on_demand_service::config::OnDemandAura;
+use on_demand_service::config::OnDemandSlot;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -69,7 +69,7 @@ pub type Service = PartialComponents<
 	(ParachainBlockImport, Option<Telemetry>, Option<TelemetryWorkerHandle>),
 >;
 
-type OnDemandConfig = OnDemandAura<
+type OnDemandConfig = OnDemandSlot<
 	Arc<dyn RelayChainInterface>,
 	ParachainClient,
 	Block,
