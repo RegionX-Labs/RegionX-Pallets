@@ -17,7 +17,7 @@ const COLLATORS = [CHARLIE, EVE, FERDIE];
 
 const keyring = new Keyring({ type: "sr25519" });
 
-const MILLIS_PER_BLOCK = 30000; // 0.5 minutes.
+const MILLIS_PER_BLOCK = 24000;
 
 async function orderPlacementWorks() {
     const relayEndpoint = new WsProvider(RELAY_ENDPOINT);
@@ -77,7 +77,6 @@ async function orderPlacementWorks() {
 
               const author = header.author?.toHuman().toString();
               console.log(`Block author: ${author}`);
-              // assert(author === orderPlacer);
 
               unsubscribe();
             });
