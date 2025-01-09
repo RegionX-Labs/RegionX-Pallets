@@ -33,7 +33,6 @@ use codec::Encode;
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use on_demand_primitives::OnDemandRuntimeApi;
 use pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi;
-use parachain_example_runtime::ThresholdParameter;
 use polkadot_primitives::Balance;
 use prometheus_endpoint::Registry;
 use sc_client_api::{Backend, UsageProvider};
@@ -44,7 +43,9 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::{OffchainTransactionPoolFactory, TransactionPool};
 use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_keystore::KeystorePtr;
+use on_demand_service::config::OnDemandAura;
 
 // RegionX Modules
 use on_demand_service::{config::OrderCriteria, start_on_demand};
@@ -68,10 +69,16 @@ pub type Service = PartialComponents<
 	(ParachainBlockImport, Option<Telemetry>, Option<TelemetryWorkerHandle>),
 >;
 
-pub struct OnDemandConfig;
-impl on_demand_service::config::OnDemandConfig for OnDemandConfig {
-	type OrderPlacementCriteria = OrderPlacementCriteria;
-}
+type OnDemandConfig = OnDemandAura<
+	Arc<dyn RelayChainInterface>,
+	ParachainClient,
+	Block,
+	AuthorityPair,
+	sc_transaction_pool::FullPool<Block, ParachainClient>,
+	Balance,
+	OrderPlacementCriteria,
+	Balance,
+>;
 
 // https://github.com/paritytech/cumulus/issues/2154
 pub struct OrderPlacementCriteria;
@@ -204,7 +211,7 @@ fn build_import_queue(
 	task_manager: &TaskManager,
 ) -> sc_consensus::DefaultImportQueue<Block> {
 	cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
-		sp_consensus_aura::sr25519::AuthorityPair,
+		AuthorityPair,
 		_,
 		_,
 		_,
@@ -275,9 +282,7 @@ fn start_consensus(
 		authoring_duration: Duration::from_millis(2000),
 		reinitialize: false,
 	};
-	let fut = aura::run::<Block, sp_consensus_aura::sr25519::AuthorityPair, _, _, _, _, _, _, _, _>(
-		params,
-	);
+	let fut = aura::run::<Block, AuthorityPair, _, _, _, _, _, _, _, _>(params);
 	task_manager.spawn_essential_handle().spawn("aura", None, fut);
 
 	Ok(())
@@ -447,7 +452,7 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		start_on_demand::<_, _, _, _, _, OnDemandConfig, ThresholdParameter>(
+		start_on_demand::<OnDemandConfig>(
 			client.clone(),
 			para_id,
 			relay_chain_interface.clone(),
@@ -456,6 +461,7 @@ pub async fn start_parachain_node(
 			params.keystore_container.keystore(),
 			relay_rpc,
 			on_demand_baseline_balance,
+			relay_chain_slot_duration,
 		)?;
 		start_consensus(
 			client.clone(),

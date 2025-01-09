@@ -9,7 +9,7 @@ use crate::{
 	},
 	config::{OnDemandConfig, OrderCriteria},
 };
-use codec::{Codec, Decode};
+use codec::Decode;
 use cumulus_primitives_core::{
 	relay_chain::{BlockNumber as RelayBlockNumber, Nonce},
 	ParaId, PersistedValidationData,
@@ -18,18 +18,17 @@ use cumulus_relay_chain_interface::{RelayChainInterface, RelayChainResult};
 use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
 use on_demand_primitives::{
 	well_known_keys::{account, ON_DEMAND_QUEUE},
-	EnqueuedOrder, OnDemandRuntimeApi, ThresholdParameterT,
+	EnqueuedOrder,
 };
 use polkadot_primitives::OccupiedCoreAssumption;
-use sc_client_api::UsageProvider;
 use sc_service::TaskManager;
-use sc_transaction_pool_api::MaintainedTransactionPool;
-use sp_api::ProvideRuntimeApi;
-use sp_consensus_aura::{sr25519::AuthorityId, AuraApi};
-use sp_core::{ByteArray, H256};
+use sp_core::H256;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Block as BlockT, Header, MaybeDisplay};
-use std::{error::Error, fmt::Debug, net::SocketAddr, sync::Arc};
+use sp_runtime::{
+	traits::{Block as BlockT, Header},
+	RuntimeAppPublic,
+};
+use std::{error::Error, net::SocketAddr, sync::Arc, time::Duration};
 
 mod chain;
 pub mod config;
@@ -37,35 +36,21 @@ pub mod config;
 const LOG_TARGET: &str = "on-demand-service";
 
 /// Start all the on-demand order creation related tasks.
-pub fn start_on_demand<P, R, ExPool, Block, Balance, Config, ThresholdParameter>(
-	parachain: Arc<P>,
+pub fn start_on_demand<Config>(
+	parachain: Arc<Config::P>,
 	para_id: ParaId,
-	relay_chain: R,
-	transaction_pool: Arc<ExPool>,
+	relay_chain: Config::R,
+	transaction_pool: Arc<Config::ExPool>,
 	task_manager: &TaskManager,
 	keystore: KeystorePtr,
 	relay_rpc: Option<SocketAddr>,
-	rc_balance_baseline: Balance,
+	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) -> sc_service::error::Result<()>
 where
-	Block: BlockT,
-	Balance: Codec
-		+ MaybeDisplay
-		+ 'static
-		+ Debug
-		+ Send
-		+ Into<u128>
-		+ AtLeast32BitUnsigned
-		+ Copy
-		+ From<u128>,
-	R: RelayChainInterface + Clone + 'static,
-	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	ThresholdParameter: ThresholdParameterT,
-	P::Api: AuraApi<Block, AuthorityId>
-		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
-	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
+	Config::OrderPlacementCriteria:
+		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let mut url = String::from("ws://"); // <- TODO wss
 	url.push_str(
@@ -74,16 +59,16 @@ where
 			.to_string(),
 	);
 
-	let on_demand_task =
-		run_on_demand_task::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
-			para_id,
-			parachain,
-			relay_chain,
-			keystore,
-			transaction_pool,
-			url,
-			rc_balance_baseline,
-		);
+	let on_demand_task = run_on_demand_task::<Config>(
+		para_id,
+		parachain,
+		relay_chain,
+		keystore,
+		transaction_pool,
+		url,
+		rc_balance_baseline,
+		rc_slot_duration,
+	);
 
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"on-demand order placement task",
@@ -94,48 +79,35 @@ where
 	Ok(())
 }
 
-async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn run_on_demand_task<Config>(
 	para_id: ParaId,
-	parachain: Arc<P>,
-	relay_chain: R,
+	parachain: Arc<Config::P>,
+	relay_chain: Config::R,
 	keystore: KeystorePtr,
-	transaction_pool: Arc<ExPool>,
+	transaction_pool: Arc<Config::ExPool>,
 	relay_url: String,
-	rc_balance_baseline: Balance,
+	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) where
-	Block: BlockT,
-	Balance: Codec
-		+ MaybeDisplay
-		+ 'static
-		+ Debug
-		+ Into<u128>
-		+ AtLeast32BitUnsigned
-		+ Copy
-		+ From<u128>,
-	R: RelayChainInterface + Clone,
-	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	ThresholdParameter: ThresholdParameterT,
-	P::Api: AuraApi<Block, AuthorityId>
-		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
-	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
+	Config::OrderPlacementCriteria:
+		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	log::info!(
 		target: LOG_TARGET,
 		"Starting on-demand task"
 	);
 
-	let relay_chain_notification =
-		follow_relay_chain::<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
-			para_id,
-			parachain,
-			relay_chain,
-			keystore,
-			transaction_pool,
-			relay_url,
-			rc_balance_baseline,
-		);
+	let relay_chain_notification = follow_relay_chain::<Config>(
+		para_id,
+		parachain,
+		relay_chain,
+		keystore,
+		transaction_pool,
+		relay_url,
+		rc_balance_baseline,
+		rc_slot_duration,
+	);
 
 	// let event_notification = event_notification(para_id, url, order_record);
 	select! {
@@ -144,32 +116,19 @@ async fn run_on_demand_task<P, R, Block, ExPool, Balance, Config, ThresholdParam
 	}
 }
 
-async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn follow_relay_chain<Config>(
 	para_id: ParaId,
-	parachain: Arc<P>,
-	relay_chain: R,
+	parachain: Arc<Config::P>,
+	relay_chain: Config::R,
 	keystore: KeystorePtr,
-	transaction_pool: Arc<ExPool>,
+	transaction_pool: Arc<Config::ExPool>,
 	relay_url: String,
-	rc_balance_baseline: Balance,
+	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) where
-	Block: BlockT,
-	Balance: Codec
-		+ MaybeDisplay
-		+ 'static
-		+ Debug
-		+ Into<u128>
-		+ AtLeast32BitUnsigned
-		+ Copy
-		+ From<u128>,
-	R: RelayChainInterface + Clone,
-	P: Send + Sync + 'static + ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	ThresholdParameter: ThresholdParameterT,
-	P::Api: AuraApi<Block, AuthorityId>
-		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
-	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
+	Config::OrderPlacementCriteria:
+		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let new_best_heads = match new_best_heads(relay_chain.clone(), para_id).await {
 		Ok(best_heads_stream) => best_heads_stream.fuse(),
@@ -195,7 +154,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 							r_hash,
 						);
 
-						let _ = handle_relaychain_stream::<P, Block, ExPool, Balance, Config, ThresholdParameter>(
+						let _ = handle_relaychain_stream::<Config>(
 							validation_data,
 							height,
 							&*parachain,
@@ -206,6 +165,7 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 							para_id,
 							relay_url.clone(),
 							rc_balance_baseline,
+							rc_slot_duration,
 						).await;
 					},
 					None => {
@@ -218,35 +178,23 @@ async fn follow_relay_chain<P, R, Block, ExPool, Balance, Config, ThresholdParam
 }
 
 /// Order placement logic
-async fn handle_relaychain_stream<P, Block, ExPool, Balance, Config, ThresholdParameter>(
+async fn handle_relaychain_stream<Config>(
 	validation_data: PersistedValidationData,
 	relay_height: RelayBlockNumber,
-	parachain: &P,
+	parachain: &Config::P,
 	keystore: KeystorePtr,
-	transaction_pool: Arc<ExPool>,
-	relay_chain: impl RelayChainInterface + Clone,
+	transaction_pool: Arc<Config::ExPool>,
+	relay_chain: Config::R,
 	r_hash: H256,
 	para_id: ParaId,
 	relay_url: String,
-	rc_balance_baseline: Balance,
+	rc_balance_baseline: Config::Balance,
+	rc_slot_duration: Duration,
 ) -> Result<(), Box<dyn Error>>
 where
-	Block: BlockT,
-	Balance: Codec
-		+ MaybeDisplay
-		+ 'static
-		+ Debug
-		+ Into<u128>
-		+ AtLeast32BitUnsigned
-		+ Copy
-		+ From<u128>,
-	P: ProvideRuntimeApi<Block> + UsageProvider<Block>,
-	ThresholdParameter: ThresholdParameterT,
-	P::Api: AuraApi<Block, AuthorityId>
-		+ OnDemandRuntimeApi<Block, Balance, RelayBlockNumber, ThresholdParameter>,
-	ExPool: MaintainedTransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
 	Config: OnDemandConfig + 'static,
-	Config::OrderPlacementCriteria: OrderCriteria<P = P, Block = Block, ExPool = ExPool>,
+	Config::OrderPlacementCriteria:
+		OrderCriteria<P = Config::P, Block = Config::Block, ExPool = Config::ExPool>,
 {
 	let is_parathread = is_parathread(&relay_chain, r_hash, para_id).await?;
 
@@ -276,7 +224,7 @@ where
 		// Check if any of the accounts is below the baseline balance.
 		let rc_account_storage = relay_chain.get_storage_by_key(r_hash, &account(acc)).await?;
 		if let Some(rc_account_storage) = rc_account_storage {
-			let rc_account: AccountInfo<Nonce, AccountData<Balance>> =
+			let rc_account: AccountInfo<Nonce, AccountData<Config::Balance>> =
 				AccountInfo::decode(&mut &rc_account_storage[..])?;
 
 			if rc_account.data.free <= rc_balance_baseline {
@@ -290,25 +238,25 @@ where
 	}
 
 	let head_encoded = validation_data.clone().parent_head.0;
-	let head = <<Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
+	let para_head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
-	let head_hash = head.hash();
-	let authorities = parachain.runtime_api().authorities(head_hash).map_err(Box::new)?;
-	let slot_width = parachain.runtime_api().slot_width(head_hash)?;
+	let order_placer = Config::order_placer(
+		Box::leak(Box::new(relay_chain.clone())), // <- TODO
+		parachain,
+		r_hash,
+		para_head,
+		rc_slot_duration,
+	)
+	.await?
+	.clone();
 
-	// Taken from: https://github.com/paritytech/polkadot-sdk/issues/1487
-	let indx = (relay_height >> slot_width) % authorities.len() as u32;
-	let expected_author =
-		authorities.get(indx as usize).ok_or("Failed to get selected collator")?;
-
-	if !keystore.has_keys(&[(expected_author.to_raw_vec(), sp_application_crypto::key_types::AURA)])
-	{
+	if !keystore.has_keys(&[(order_placer.to_raw_vec(), sp_application_crypto::key_types::AURA)]) {
 		// Expected author is not in the keystore therefore we are not responsible for order
 		// creation.
 		log::info!(
 			target: LOG_TARGET,
 			"Waiting for {} to create an order",
-			expected_author
+			order_placer
 		);
 		return Ok(())
 	}
@@ -339,7 +287,7 @@ where
 		return Ok(())
 	}
 
-	let spot_price = get_spot_price::<Balance>(relay_chain, r_hash)
+	let spot_price = get_spot_price::<Config::Balance>(relay_chain, r_hash)
 		.await
 		.ok_or("Failed to get spot price")?;
 
@@ -348,7 +296,7 @@ where
 		"Placing an order",
 	);
 
-	chain::submit_order(&relay_url, para_id, spot_price.into(), slot_width, keystore).await?;
+	chain::submit_order(&relay_url, para_id, spot_price.into(), keystore).await?;
 
 	Ok(())
 }

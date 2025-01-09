@@ -185,7 +185,9 @@ mod block_times {
 	/// slot_duration()`.
 	///
 	/// Change this to adjust the block time.
-	pub const MILLI_SECS_PER_BLOCK: u64 = 5 * 12000;
+	pub const MILLI_SECS_PER_BLOCK: u64 = 24 * 1000;
+	// ^^^^ 24 seconds. In production this should be set to a higher value to give enough time for
+	// an order and a block to be created in the same slot.
 
 	// NOTE: Currently it is not possible to change the slot duration after the chain has started.
 	// Attempting to do so will brick block production.

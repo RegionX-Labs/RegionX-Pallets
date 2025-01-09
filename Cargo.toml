@@ -31,6 +31,7 @@ frame-system = { version = "38.0.0", default-features = false }
 
 sc-transaction-pool-api = { version = "37.0.0", default-features = false }
 sc-client-api = { version = "37.0.0", default-features = false }
+sc-consensus-aura = { version = "0.45.0", default-features = false }
 sc-service = { version = "0.46.0", default-features = false }
 
 sp-api = { version = "34.0.0", default-features = false }
@@ -52,6 +53,8 @@ xcm-executor = { version = "17.0.0", package = "staging-xcm-executor", default-f
 # Cumulus
 cumulus-primitives-core = { version = "0.16.0", default-features = false }
 cumulus-relay-chain-interface = { version = "0.18.0", default-features = false }
+cumulus-client-consensus-aura = { version = "0.18.0", default-features = false }
+cumulus-client-consensus-common = { version = "0.18.0", default-features = false }
 
 # Polkadot
 polkadot-primitives = { version = "16.0.0", default-features = false }

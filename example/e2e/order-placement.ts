@@ -17,6 +17,8 @@ const COLLATORS = [CHARLIE, EVE, FERDIE];
 
 const keyring = new Keyring({ type: "sr25519" });
 
+const MILLIS_PER_BLOCK = 24000;
+
 async function orderPlacementWorks() {
     const relayEndpoint = new WsProvider(RELAY_ENDPOINT);
     const relayApi = await ApiPromise.create({provider: relayEndpoint});
@@ -33,8 +35,6 @@ async function orderPlacementWorks() {
     ];
     await force(relayApi, relayApi.tx.utility.batchAll(configureTxs));
 
-    // TODO: set slot width
-
     // Assigning a core to the instantaneous coretime pool:
     await force(relayApi, relayApi.tx.coretime.assignCore(1, 0, [['Pool', 57600]], null));
 
@@ -42,7 +42,7 @@ async function orderPlacementWorks() {
     log(`Para height before stopping: ${paraHeight}`);
 
     // Wait some time to prove that the parachain is not producing blocks.
-    await sleep(24 * 1000);
+    await sleep(2 * MILLIS_PER_BLOCK);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(paraHeight === newParaHeight, "Para should stop with block production");
@@ -56,12 +56,12 @@ async function orderPlacementWorks() {
     assert(newParaHeight > paraHeight, "Para should continue block production");
 
     // Threshold not set, criteria should always be met.
-    const iterations = 3;
+    const iterations = 5;
     let counter = 0;
 
     await new Promise(async (resolve, reject) => {
       const unsub: any = await relayApi.query.system.events((events: any) => {
-        events.forEach((record: EventRecord) => {
+        events.forEach(async (record: EventRecord) => {
           const { event } = record;
 
           if(event.method === 'OnDemandOrderPlaced') {
@@ -69,6 +69,17 @@ async function orderPlacementWorks() {
             const orderPlacer = event.data[2].toString();
 
             assert(COLLATORS.includes(orderPlacer));
+
+            // Wait for next block to be produced:
+            const unsubscribe = await paraApi.rpc.chain.subscribeNewHeads(async (head) => {
+              console.log(`Parachain is at block: #${head.hash}`);
+              const header = await paraApi.derive.chain.getHeader(head.hash);
+
+              const author = header.author?.toHuman().toString();
+              console.log(`Block author: ${author}`);
+
+              unsubscribe();
+            });
 
             counter++;
           }
@@ -87,7 +98,7 @@ async function orderPlacementWorks() {
     var paraHeight = (await paraApi.query.system.number()).toJSON() as number;
 
     // Wait some time to prove that the parachain is not producing blocks.
-    await sleep(24 * 1000);
+    await sleep(2 * MILLIS_PER_BLOCK);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(paraHeight === newParaHeight, "Para should stop with block production");
@@ -97,12 +108,10 @@ async function orderPlacementWorks() {
     await submitExtrinsic(alice, paraApi.tx.balances.transferKeepAlive(CHARLIE, 1_000_000_000), {});
 
     // Give some time for a block to be created.
-    await sleep(12 * 1000);
+    await sleep(MILLIS_PER_BLOCK * 1.2);
 
     var newParaHeight = (await paraApi.query.system.number()).toJSON() as number;
     assert(newParaHeight > paraHeight, "Para should produce a block");
-    
-    // TODO: add test to check if the author is same as the order creator.
 }
 
 orderPlacementWorks().then(() => console.log("\n✅ Test complete ✅"));

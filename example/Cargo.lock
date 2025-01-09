@@ -6447,6 +6447,8 @@ dependencies = [
 name = "on-demand-service"
 version = "0.1.0"
 dependencies = [
+ "cumulus-client-consensus-aura",
+ "cumulus-client-consensus-common",
  "cumulus-primitives-core",
  "cumulus-relay-chain-interface",
  "futures",
@@ -6456,6 +6458,7 @@ dependencies = [
  "polkadot-primitives 16.0.0",
  "polkadot-runtime-parachains",
  "sc-client-api",
+ "sc-consensus-aura",
  "sc-service",
  "sc-transaction-pool-api",
  "scale-info",
