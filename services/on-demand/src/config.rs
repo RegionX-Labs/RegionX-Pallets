@@ -18,7 +18,7 @@ use sp_runtime::{
 		Member, PhantomData,
 	},
 };
-use std::{error::Error, fmt::Display, future::Future, pin::Pin, time::Duration};
+use std::{error::Error, fmt::Display, future::Future, pin::Pin};
 
 pub trait OnDemandConfig {
 	/// Custom order placement criteria.
@@ -57,11 +57,9 @@ pub trait OnDemandConfig {
 	type OrderPlacerFuture: Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send;
 
 	fn order_placer(
-		relay_chain: &'static Self::R,
 		para: &Self::P,
 		relay_hash: H256,
 		para_header: <Self::Block as BlockT>::Header,
-		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture;
 }
 
@@ -121,11 +119,9 @@ where
 		Pin<Box<dyn Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send>>;
 
 	fn order_placer(
-		_relay_chain: &'static R,
 		para: &P,
 		_relay_hash: H256,
 		para_header: <Self::Block as BlockT>::Header,
-		_relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {
 		let para_hash = para_header.hash();
 		let para_height: u128 = para_header.number().clone().into();
@@ -184,11 +180,9 @@ where
 		Pin<Box<dyn Future<Output = Result<Self::AuthorPub, Box<dyn Error>>> + Send>>;
 
 	fn order_placer(
-		_relay_chain: &'static R,
 		para: &P,
-		relay_hash: H256,
+		_relay_hash: H256,
 		para_header: <Self::Block as BlockT>::Header,
-		relay_chain_slot_duration: Duration,
 	) -> Self::OrderPlacerFuture {
 		let para_hash = para_header.hash();
 		let authorities_result = para.runtime_api().authorities(para_hash).map_err(Box::new);

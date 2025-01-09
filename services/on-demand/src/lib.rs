@@ -241,11 +241,9 @@ where
 	let para_head = <<Config::Block as BlockT>::Header>::decode(&mut &head_encoded[..])?;
 
 	let order_placer = Config::order_placer(
-		Box::leak(Box::new(relay_chain.clone())), // <- TODO
 		parachain,
 		r_hash,
 		para_head,
-		rc_slot_duration,
 	)
 	.await?
 	.clone();
