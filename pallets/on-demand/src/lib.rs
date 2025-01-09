@@ -25,6 +25,7 @@ pub mod pallet {
 	use super::*;
 	use crate::weights::WeightInfo;
 	use sp_runtime::traits::AtLeast32BitUnsigned;
+	use on_demand_primitives::OrderInherentData;
 
 	/// The module configuration trait.
 	#[pallet::config]
@@ -112,13 +113,49 @@ pub mod pallet {
 		}
 	}
 
+	#[pallet::inherent]
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = MakeFatalError<()>;
+
+		const INHERENT_IDENTIFIER: InherentIdentifier =
+			on_demand_primitives::ON_DEMAND_INHERENT_IDENTIFIER;
+
+		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			let data: OrderInherentData = data
+				.get_data(&Self::INHERENT_IDENTIFIER)
+				.ok()
+				.flatten()
+				.expect("there is not data to be posted; qed");
+
+			Some(Call::create_order { data })
+		}
+
+		fn is_inherent(call: &Self::Call) -> bool {
+			matches!(call, Call::create_order { .. })
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
+		#[pallet::weight((0, DispatchClass::Mandatory))]
+		pub fn create_order(
+			origin: OriginFor<T>,
+			data: OrderInherentData,
+		) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+
+			// TODO
+
+			Ok(().into())
+		}
+
 		/// Set the slot width for on-demand blocks.
 		///
 		/// - `origin`: Must be Root or pass `AdminOrigin`.
 		/// - `width`: The slot width in relay chain blocks.
-		#[pallet::call_index(0)]
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::set_slot_width())]
 		pub fn set_slot_width(origin: OriginFor<T>, width: T::BlockNumber) -> DispatchResult {
 			T::AdminOrigin::ensure_origin_or_root(origin)?;
@@ -133,7 +170,7 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root or pass `AdminOrigin`.
 		/// - `parameter`: The threshold parameter.
-		#[pallet::call_index(1)]
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::set_threshold_parameter())]
 		pub fn set_threshold_parameter(
 			origin: OriginFor<T>,

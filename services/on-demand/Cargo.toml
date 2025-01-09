@@ -29,9 +29,6 @@ sp-runtime = { workspace = true }
 sp-keystore = { workspace = true }
 sc-service = { workspace = true }
 sc-consensus-aura = { workspace = true }
-sp-state-machine = { workspace = true }
-sp-inherents = { workspace = true }
-sp-trie = { workspace = true }
 
 # Cumulus
 cumulus-primitives-core = { workspace = true }

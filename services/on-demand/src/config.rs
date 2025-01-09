@@ -1,27 +1,21 @@
 //! This file contains all the configuration related traits.
 
-use crate::{ParaId, PersistedValidationData, RelayBlockNumber};
-use codec::{Codec, Decode, Encode};
-use cumulus_primitives_core::{relay_chain::BlakeTwo256, ConsensusEngineId};
+use crate::RelayBlockNumber;
+use codec::{Codec, Decode};
+use cumulus_primitives_core::ConsensusEngineId;
 use cumulus_relay_chain_interface::{PHash, RelayChainInterface};
-use on_demand_primitives::{well_known_keys::EVENTS, OnDemandRuntimeApi, ThresholdParameterT};
+use on_demand_primitives::{OnDemandRuntimeApi, ThresholdParameterT};
 use sc_client_api::UsageProvider;
 use sc_service::Arc;
 use sc_transaction_pool_api::MaintainedTransactionPool;
-use scale_info::TypeInfo;
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::RuntimeAppPublic;
 use sp_consensus_aura::{AuraApi, Slot, AURA_ENGINE_ID};
 use sp_core::crypto::Pair as PairT;
-use sp_inherents::InherentIdentifier;
-use sp_runtime::{
-	generic::BlockId,
-	traits::{
-		AtLeast32BitUnsigned, Block as BlockT, Debug, Header as HeaderT, MaybeDisplay, Member,
-		PhantomData,
-	},
+use sp_runtime::traits::{
+	AtLeast32BitUnsigned, Block as BlockT, Debug, Header as HeaderT, MaybeDisplay, Member,
+	PhantomData,
 };
-use sp_trie::{Trie, LayoutV1, TrieDBBuilder};
 use std::{error::Error, fmt::Display};
 
 pub trait OnDemandConfig {
@@ -191,24 +185,6 @@ where
 	}
 }
 
-async fn collect_relay_storage_proof(
-	relay_chain: &impl RelayChainInterface,
-	relay_parent: PHash,
-) -> Option<sp_state_machine::StorageProof> {
-	let mut relevant_keys = Vec::new();
-	// Get storage proof for events at a specific block.
-	relevant_keys.push(EVENTS.to_vec());
-
-	let relay_storage_proof = relay_chain.prove_read(relay_parent, &relevant_keys).await;
-	match relay_storage_proof {
-		Ok(proof) => Some(proof),
-		Err(err) => {
-			log::info!("RelayChainError:{:?}", err);
-			None
-		},
-	}
-}
-
 fn find_author<'a, I>(digests: I, authorities_len: usize) -> Option<u32>
 where
 	I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
@@ -222,65 +198,4 @@ where
 	}
 
 	None
-}
-
-// Identifier of the order inherent
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"orderiht";
-
-#[derive(Encode, Decode, sp_core::RuntimeDebug, Clone, PartialEq, TypeInfo)]
-pub struct OrderInherentData<AuthorityId> {
-	pub relay_storage_proof: sp_trie::StorageProof,
-	pub validation_data: Option<PersistedValidationData>,
-	pub para_id: ParaId,
-	pub sequence_number: u64,
-	pub author_pub: Option<AuthorityId>,
-}
-
-impl<AuthorityId: Clone> OrderInherentData<AuthorityId> {
-	pub async fn create_at(
-		relay_chain_interface: &impl RelayChainInterface,
-		para_id: ParaId,
-	) -> Option<OrderInherentData<AuthorityId>> {
-		let best_hash = relay_chain_interface.best_block_hash().await.unwrap(); // TODO
-		let header = relay_chain_interface.header(BlockId::Hash(best_hash)).await.unwrap().unwrap(); // TODO
-
-		let relay_storage_proof =
-			collect_relay_storage_proof(relay_chain_interface, header.hash()).await?;
-
-		let db = relay_storage_proof.to_memory_db::<BlakeTwo256>();
-		// TODO: LayoutV1 ?
-		let trie = TrieDBBuilder::<LayoutV1<BlakeTwo256>>::new(&db, &header.state_root).build();
-		let events = trie.get(EVENTS); // TODO: try to decode.
-
-		/*
-		Some(OrderInherentData {
-			relay_storage_proof: relay_storage_proof.clone(),
-			validation_data: validation_data.clone(),
-			para_id,
-			sequence_number,
-			author_pub: author_pub.clone(),
-		})
-		*/
-		None
-	}
-}
-
-#[async_trait::async_trait]
-impl<AuthorityId: Send + Sync + Codec> sp_inherents::InherentDataProvider
-	for OrderInherentData<AuthorityId>
-{
-	async fn provide_inherent_data(
-		&self,
-		inherent_data: &mut sp_inherents::InherentData,
-	) -> Result<(), sp_inherents::Error> {
-		inherent_data.put_data(INHERENT_IDENTIFIER, &self)
-	}
-
-	async fn try_handle_error(
-		&self,
-		_: &sp_inherents::InherentIdentifier,
-		_: &[u8],
-	) -> Option<Result<(), sp_inherents::Error>> {
-		None
-	}
 }

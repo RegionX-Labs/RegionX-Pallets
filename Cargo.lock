@@ -5508,16 +5508,23 @@ dependencies = [
 name = "on-demand-primitives"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "cumulus-primitives-core",
+ "cumulus-relay-chain-interface",
  "frame-support",
  "hex-literal",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "smallvec",
  "sp-api",
+ "sp-core",
+ "sp-inherents",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -5546,11 +5553,8 @@ dependencies = [
  "sp-application-crypto",
  "sp-consensus-aura",
  "sp-core",
- "sp-inherents",
  "sp-keystore",
  "sp-runtime",
- "sp-state-machine",
- "sp-trie",
  "subxt",
 ]
 
@@ -5832,6 +5836,7 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
+ "on-demand-primitives",
  "pallet-balances",
  "parity-scale-codec",
  "polkadot-sdk-frame",

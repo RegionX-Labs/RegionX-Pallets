@@ -59,6 +59,7 @@ cumulus-primitives-core = { version = "0.16.0", default-features = false }
 cumulus-relay-chain-interface = { version = "0.18.0", default-features = false }
 cumulus-client-consensus-aura = { version = "0.18.0", default-features = false }
 cumulus-client-consensus-common = { version = "0.18.0", default-features = false }
+cumulus-pallet-parachain-system = { version = "0.17.1", default-features = false }
 
 # Polkadot
 polkadot-primitives = { version = "16.0.0", default-features = false }
