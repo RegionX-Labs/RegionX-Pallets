@@ -18,6 +18,12 @@ frame-benchmarking = { workspace = true, default-features = false, optional = tr
 sp-runtime = { workspace = true, default-features = false }
 frame-support = { workspace = true, default-features = false }
 
+# Polkadot
+polkadot-runtime-parachains = { workspace = true, default-features = false }
+
+# Cumulus
+cumulus-pallet-parachain-system = { workspace = true, default-features = false }
+
 # Local
 on-demand-primitives = { workspace = true, default-features = false }
 
@@ -43,5 +49,7 @@ std = [
 	"sp-core/std",
 	"pallet-balances/std",
 	"on-demand-primitives/std",
+	"cumulus-pallet-parachain-system/std",
+	"polkadot-runtime-parachains/std",
 ]
 try-runtime = ["frame/try-runtime"]

@@ -1,6 +1,6 @@
 use crate::{
 	mock::{new_test_ext, OnDemand, RuntimeOrigin, System, Test},
-	Event, ThresholdParameter,
+	Event, SlotWidth, ThresholdParameter,
 };
 use frame_support::{assert_noop, assert_ok};
 use sp_runtime::traits::BadOrigin;

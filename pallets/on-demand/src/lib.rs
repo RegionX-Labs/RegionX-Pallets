@@ -4,7 +4,8 @@
 
 extern crate alloc;
 
-use frame::prelude::*;
+use frame::{prelude::*, traits::Currency};
+use polkadot_runtime_parachains::on_demand;
 
 pub use pallet::*;
 
@@ -20,12 +21,20 @@ pub mod weights;
 #[cfg(feature = "runtime-benchmarks")]
 pub use benchmarking::BenchmarkHelper;
 
+type BalanceOf<T> = <<T as on_demand::Config>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
+type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+
 #[frame::pallet]
 pub mod pallet {
 	use super::*;
-	use crate::weights::WeightInfo;
+	use crate::{frame_system::EventRecord, weights::WeightInfo};
+	use cumulus_pallet_parachain_system::{
+		relay_state_snapshot::Error as RelayError, RelayChainStateProof, RelaychainStateProvider,
+	};
+	use on_demand_primitives::{well_known_keys::EVENTS, OrderInherentData};
 	use sp_runtime::traits::AtLeast32BitUnsigned;
-	use on_demand_primitives::OrderInherentData;
 
 	/// The module configuration trait.
 	#[pallet::config]
@@ -60,8 +69,14 @@ pub mod pallet {
 			+ MaybeSerializeDeserialize
 			+ MaxEncodedLen;
 
+		/// Type for getting the current relay chain state.
+		type RelayChainStateProvider: RelaychainStateProvider;
+
 		/// Weight Info
 		type WeightInfo: WeightInfo;
+
+		/// Relay chain on demand config.
+		type OnDemandConfig: polkadot_runtime_parachains::on_demand::Config + Parameter + Member;
 
 		#[cfg(feature = "runtime-benchmarks")]
 		type BenchmarkHelper: crate::BenchmarkHelper<Self::ThresholdParameter>;
@@ -69,6 +84,13 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
+
+	/// Order sequence number.
+	///
+	/// Gets increased every time
+	#[pallet::storage]
+	#[pallet::getter(fn slot_width)]
+	pub type SlotWidth<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	/// Defines how often a new on-demand order is created, based on the number of slots.
 	///
@@ -97,7 +119,12 @@ pub mod pallet {
 
 	#[pallet::error]
 	#[derive(PartialEq)]
-	pub enum Error<T> {}
+	pub enum Error<T> {
+		/// Invalid proof provided for system events key
+		InvalidProof,
+		/// Failed to read the relay chain proof.
+		FailedProofReading,
+	}
 
 	#[pallet::genesis_config]
 	#[derive(DefaultNoBound)]
@@ -122,7 +149,7 @@ pub mod pallet {
 			on_demand_primitives::ON_DEMAND_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			let data: OrderInherentData = data
+			let data: OrderInherentData<AccountIdOf<T::OnDemandConfig>> = data
 				.get_data(&Self::INHERENT_IDENTIFIER)
 				.ok()
 				.flatten()
@@ -136,17 +163,61 @@ pub mod pallet {
 		}
 	}
 
+	#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo, MaxEncodedLen)]
+	#[scale_info(skip_type_params(T))]
+	enum RelayChainEvent<T: polkadot_runtime_parachains::on_demand::Config> {
+		OnDemandAssignmentProvider(on_demand::Event<T>),
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
 		#[pallet::weight((0, DispatchClass::Mandatory))]
 		pub fn create_order(
 			origin: OriginFor<T>,
-			data: OrderInherentData,
+			data: OrderInherentData<AccountIdOf<T::OnDemandConfig>>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
-			// TODO
+			let current_state = T::RelayChainStateProvider::current_relay_chain_state();
+			let relay_state_proof = RelayChainStateProof::new(
+				data.para_id,
+				current_state.state_root,
+				data.relay_storage_proof,
+			)
+			.expect("Invalid relay chain state proof"); // TODO
+
+			let events = relay_state_proof
+				.read_entry::<Vec<Box<EventRecord<RelayChainEvent<T::OnDemandConfig>, T::Hash>>>>(
+					EVENTS, None,
+				)
+				.map_err(|e| match e {
+					RelayError::ReadEntry(_) => Error::InvalidProof,
+					_ => Error::<T>::FailedProofReading,
+				})
+				.unwrap(); // TODO
+
+			let result: Vec<(BalanceOf<T::OnDemandConfig>, AccountIdOf<T::OnDemandConfig>)> =
+				events
+					.into_iter()
+					.filter_map(|item| match item.event {
+						RelayChainEvent::<T::OnDemandConfig>::OnDemandAssignmentProvider(
+							on_demand::Event::OnDemandOrderPlaced {
+								para_id,
+								spot_price,
+								ordered_by,
+							},
+						) if para_id == data.para_id && ordered_by == data.author_pub =>
+							Some((spot_price, ordered_by)),
+						_ => None,
+					})
+					.collect();
+
+			// TODO: Actually the order creator and the author will unlikely be the same account....
+
+			// Since we filtered only the orders created by the author, we can simply take the first
+			// one. There's no reason for the author to create multiple orders anyway.
+			let order = result.first().unwrap(); // TODO
 
 			Ok(().into())
 		}
